@@ -87,19 +87,23 @@ export default function App() {
   };
 
   const handleAddTask = () => {
-    const newTask = { id: Date.now().toString() + Math.random().toString(36).substring(2), title: 'New Task' };
-    setTasks([...tasks, newTask]);
+    const newId = Date.now().toString() + Math.random().toString(36).substring(2);
+    const newTask = { id: newId, title: 'New Task' };
+    setTasks(prev => [...prev, newTask]);
+    return newId;
   };
 
   const handleUpdateTask = (id: string, title: string) => {
-    setTasks(tasks.map(t => t.id === id ? { ...t, title } : t));
+    setTasks(prev => prev.map(t => t.id === id ? { ...t, title } : t));
   };
 
   const handleDeleteTask = (id: string) => {
-    setTasks(tasks.filter(t => t.id !== id));
-    const newCompletions = { ...completions };
-    delete newCompletions[id];
-    setCompletions(newCompletions);
+    setTasks(prev => prev.filter(t => t.id !== id));
+    setCompletions(prev => {
+      const newCompletions = { ...prev };
+      delete newCompletions[id];
+      return newCompletions;
+    });
   };
 
   const handlePrevMonth = () => setCurrentMonth(prev => subMonths(prev, 1));
@@ -107,20 +111,11 @@ export default function App() {
   const handleToday = () => setCurrentMonth(new Date());
 
   return (
-    <div className={`min-h-screen font-sans flex items-center justify-center p-4 sm:p-8 transition-colors duration-300 ${isDark ? 'bg-neutral-950 text-slate-200' : 'bg-slate-200 text-slate-800'}`}>
-      {/* Mobile Device Mockup */}
-      <div className={`w-full max-w-[380px] aspect-[9/16] rounded-[40px] shadow-[0_0_50px_rgba(0,0,0,0.5)] border-[8px] relative overflow-hidden flex flex-col transition-colors duration-300 ${isDark ? 'bg-[#0B1120] border-neutral-900' : 'bg-slate-50 border-slate-300'}`}>
-        
-        {/* Dynamic Island / Notch area */}
-        <div className="absolute top-0 inset-x-0 h-6 flex justify-center z-50 pointer-events-none">
-          <div className={`w-32 h-6 rounded-b-2xl transition-colors duration-300 ${isDark ? 'bg-neutral-900' : 'bg-slate-300'}`}></div>
-        </div>
-
-        {/* Scrollable Content */}
-        <div className="flex-1 overflow-y-auto custom-scrollbar pt-10 pb-8 px-4 flex flex-col">
+    <div className={`h-[100dvh] overflow-hidden font-sans transition-colors duration-300 ${isDark ? 'bg-[#0B1120] text-slate-200' : 'bg-slate-50 text-slate-800'}`}>
+      <div className="max-w-md mx-auto w-full h-full flex flex-col p-4 sm:p-6 shadow-2xl bg-white/5 dark:bg-black/20">
           
           {/* Header */}
-          <div className="flex items-center justify-between mb-6 px-2">
+          <div className="flex items-center justify-between mb-6 px-2 shrink-0">
             <div className="flex items-center gap-2">
               <Layers className="w-6 h-6 text-[#4F8AFB]" />
               <h1 className={`text-xl font-bold tracking-wide transition-colors ${isDark ? 'text-white' : 'text-slate-900'}`}>TaskMaster</h1>
@@ -134,7 +129,7 @@ export default function App() {
           </div>
 
           {/* Month Navigation */}
-          <div className="flex items-center justify-between mb-6 px-2">
+          <div className="flex items-center justify-between mb-6 px-2 shrink-0">
             <button onClick={handlePrevMonth} className={`w-8 h-8 rounded-full border flex items-center justify-center transition-colors ${isDark ? 'border-slate-700 hover:bg-slate-800' : 'border-slate-300 hover:bg-slate-200'}`}>
               <ChevronLeft className={`w-4 h-4 ${isDark ? 'text-slate-300' : 'text-slate-600'}`} />
             </button>
@@ -164,23 +159,17 @@ export default function App() {
             isDark={isDark}
           />
           
-          <div className="text-center mt-auto pt-12 space-y-3">
-            <p className={`font-bold italic text-[15px] tracking-wide transition-colors ${isDark ? 'text-white' : 'text-slate-800'}`}>
-              "Success is the product of daily habits"
+          <div className="text-center mt-auto pt-4 pb-2 space-y-1 shrink-0">
+            <p className={`font-bold italic text-[13px] tracking-wide transition-colors ${isDark ? 'text-white' : 'text-slate-800'}`}>
+              "Kill the boy, let the man be born."
             </p>
-            <p className={`text-xs font-medium transition-colors ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>Developed by RK</p>
+            <p className={`text-[10px] font-medium transition-colors ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>Developed by RK</p>
           </div>
-        </div>
-
-        {/* Home Indicator */}
-        <div className="absolute bottom-2 inset-x-0 flex justify-center pointer-events-none z-50">
-          <div className={`w-32 h-1 rounded-full transition-colors ${isDark ? 'bg-slate-600/50' : 'bg-slate-400/50'}`}></div>
-        </div>
 
         {/* Celebration Modal */}
         {showCelebration && (
-          <div className="absolute inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 transition-opacity">
-            <div className={`border rounded-3xl p-6 w-full shadow-2xl flex flex-col items-center text-center transform transition-all scale-100 opacity-100 ${isDark ? 'bg-[#151C2C] border-slate-700' : 'bg-white border-slate-200'}`}>
+          <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 transition-opacity">
+            <div className={`border rounded-3xl p-6 w-full max-w-sm shadow-2xl flex flex-col items-center text-center transform transition-all scale-100 opacity-100 ${isDark ? 'bg-[#151C2C] border-slate-700' : 'bg-white border-slate-200'}`}>
               <div className="w-20 h-20 bg-emerald-500/20 rounded-full flex items-center justify-center mb-4">
                 <Trophy className="w-10 h-10 text-emerald-400 animate-bounce" />
               </div>

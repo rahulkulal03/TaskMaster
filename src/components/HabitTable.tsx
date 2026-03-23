@@ -8,7 +8,7 @@ interface Props {
   completions: Completions;
   dates: Date[];
   onToggle: (taskId: string, dateStr: string) => void;
-  onAdd: () => void;
+  onAdd: () => string | void;
   onUpdate: (id: string, title: string) => void;
   onDelete: (id: string) => void;
   isDark: boolean;
@@ -29,9 +29,16 @@ export function HabitTable({ tasks, completions, dates, onToggle, onAdd, onUpdat
   const sliderRef = useRef<HTMLDivElement>(null);
   const [isDraggingSlider, setIsDraggingSlider] = useState(false);
 
+  // Vertical slider drag state
+  const [vScrollProgress, setVScrollProgress] = useState(0);
+  const [canScrollV, setCanScrollV] = useState(false);
+  const vSliderRef = useRef<HTMLDivElement>(null);
+  const [isDraggingVSlider, setIsDraggingVSlider] = useState(false);
+
   useEffect(() => {
     if (editingId && editInputRef.current) {
       editInputRef.current.focus();
+      editInputRef.current.select();
     }
   }, [editingId]);
 
@@ -58,15 +65,28 @@ export function HabitTable({ tasks, completions, dates, onToggle, onAdd, onUpdat
 
   const handleScroll = () => {
     if (scrollRef.current) {
-      const { scrollLeft, scrollWidth, clientWidth } = scrollRef.current;
-      const maxScroll = scrollWidth - clientWidth;
-      if (maxScroll > 0) {
-        setScrollProgress(scrollLeft / maxScroll);
+      const { scrollLeft, scrollWidth, clientWidth, scrollTop, scrollHeight, clientHeight } = scrollRef.current;
+      const maxScrollX = scrollWidth - clientWidth;
+      if (maxScrollX > 0) {
+        setScrollProgress(scrollLeft / maxScrollX);
       } else {
         setScrollProgress(0);
       }
+      
+      const maxScrollY = scrollHeight - clientHeight;
+      setCanScrollV(maxScrollY > 0);
+      if (maxScrollY > 0) {
+        setVScrollProgress(scrollTop / maxScrollY);
+      } else {
+        setVScrollProgress(0);
+      }
     }
   };
+
+  useEffect(() => {
+    const timer = setTimeout(handleScroll, 100);
+    return () => clearTimeout(timer);
+  }, [tasks, dates]);
 
   const scroll = (direction: 'left' | 'right') => {
     if (scrollRef.current) {
@@ -136,10 +156,57 @@ export function HabitTable({ tasks, completions, dates, onToggle, onAdd, onUpdat
     scrollRef.current.scrollLeft = progress * maxScroll;
   };
 
+  const handleVSliderPointerDown = (e: React.PointerEvent) => {
+    setIsDraggingVSlider(true);
+    handleVSliderMove(e);
+    e.currentTarget.setPointerCapture(e.pointerId);
+  };
+
+  const handleVSliderPointerMove = (e: React.PointerEvent) => {
+    if (!isDraggingVSlider) return;
+    handleVSliderMove(e);
+  };
+
+  const handleVSliderPointerUp = (e: React.PointerEvent) => {
+    setIsDraggingVSlider(false);
+    e.currentTarget.releasePointerCapture(e.pointerId);
+  };
+
+  const handleVSliderMove = (e: React.PointerEvent) => {
+    if (!vSliderRef.current || !scrollRef.current) return;
+    const rect = vSliderRef.current.getBoundingClientRect();
+    let y = e.clientY - rect.top;
+    y = Math.max(0, Math.min(y, rect.height));
+
+    const thumbHeight = 40;
+    const availableHeight = rect.height - thumbHeight;
+    const adjustedY = Math.max(0, Math.min(y - thumbHeight / 2, availableHeight));
+    const progress = availableHeight > 0 ? adjustedY / availableHeight : 0;
+
+    const { scrollHeight, clientHeight } = scrollRef.current;
+    const maxScrollY = scrollHeight - clientHeight;
+    scrollRef.current.scrollTop = progress * maxScrollY;
+  };
+
+  const handleAddNew = () => {
+    const newId = onAdd();
+    if (typeof newId === 'string') {
+      setEditingId(newId);
+      setTimeout(() => {
+        if (scrollRef.current) {
+          scrollRef.current.scrollTo({
+            top: scrollRef.current.scrollHeight,
+            behavior: 'smooth'
+          });
+        }
+      }, 100);
+    }
+  };
+
   return (
-    <div className={`relative rounded-[24px] border shadow-xl overflow-visible mt-8 flex flex-col transition-colors duration-300 ${isDark ? 'bg-[#151C2C] border-slate-800/60' : 'bg-white border-slate-200'}`}>
+    <div className={`relative rounded-[24px] border shadow-xl overflow-visible mt-4 flex flex-col flex-1 min-h-0 transition-colors duration-300 ${isDark ? 'bg-[#151C2C] border-slate-800/60' : 'bg-white border-slate-200'}`}>
       <div 
-        className={`p-4 flex items-center gap-3 border-b pr-16 rounded-t-[24px] transition-colors duration-300 select-none ${isDark ? 'bg-[#1A233A] border-slate-800/60' : 'bg-slate-50 border-slate-200'} ${isDragging ? 'cursor-grabbing' : 'cursor-grab'}`}
+        className={`p-4 flex items-center gap-3 border-b pr-16 rounded-t-[24px] transition-colors duration-300 select-none shrink-0 ${isDark ? 'bg-[#1A233A] border-slate-800/60' : 'bg-slate-50 border-slate-200'} ${isDragging ? 'cursor-grabbing' : 'cursor-grab'}`}
         onMouseDown={handleMouseDown}
       >
         <LayoutGrid className={`w-5 h-5 ${isDark ? 'text-slate-200' : 'text-slate-700'}`} />
@@ -147,8 +214,8 @@ export function HabitTable({ tasks, completions, dates, onToggle, onAdd, onUpdat
       </div>
 
       <button
-        onClick={onAdd}
-        className="absolute -top-6 right-4 w-14 h-14 bg-[#4F8AFB] hover:bg-blue-400 text-white rounded-full flex items-center justify-center shadow-[0_4px_20px_rgba(79,138,251,0.5)] transition-all z-10"
+        onClick={handleAddNew}
+        className="absolute -top-6 right-4 w-14 h-14 bg-[#4F8AFB] hover:bg-blue-400 text-white rounded-full flex items-center justify-center shadow-[0_4px_20px_rgba(79,138,251,0.5)] transition-all z-50"
       >
         <Plus className="w-7 h-7" strokeWidth={2.5} />
       </button>
@@ -157,17 +224,17 @@ export function HabitTable({ tasks, completions, dates, onToggle, onAdd, onUpdat
         ref={scrollRef}
         onScroll={handleScroll}
         onMouseDown={handleMouseDown}
-        className={`overflow-x-auto custom-scrollbar ${isDragging ? 'cursor-grabbing' : 'cursor-grab'}`}
+        className={`overflow-auto flex-1 min-h-0 custom-scrollbar ${isDragging ? 'cursor-grabbing' : 'cursor-grab'}`}
       >
-        <table className="w-full text-sm text-left border-collapse select-none">
-          <thead className={`text-xs border-b transition-colors duration-300 ${isDark ? 'text-slate-400 border-slate-800/60 bg-[#1A233A]' : 'text-slate-500 border-slate-200 bg-slate-50'}`}>
+        <table className="w-full text-sm text-left border-collapse select-none mb-12">
+          <thead className={`text-xs border-b sticky top-0 z-30 transition-colors duration-300 ${isDark ? 'text-slate-400 border-slate-800/60 bg-[#1A233A]' : 'text-slate-500 border-slate-200 bg-slate-50'}`}>
             <tr>
-              <th className={`px-4 py-3 font-medium min-w-[120px] sticky left-0 z-20 border-r shadow-[2px_0_5px_-2px_rgba(0,0,0,0.3)] transition-colors duration-300 ${isDark ? 'bg-[#1A233A] border-slate-800/60' : 'bg-slate-50 border-slate-200'}`}>Task Name</th>
+              <th className={`px-4 py-3 font-medium min-w-[120px] sticky left-0 z-40 border-r shadow-[2px_0_5px_-2px_rgba(0,0,0,0.3)] transition-colors duration-300 ${isDark ? 'bg-[#1A233A] border-slate-800/60' : 'bg-slate-50 border-slate-200'}`}>Task Name</th>
               {dates.map(date => {
                 const isCurrent = isToday(date);
                 const dateStr = format(date, 'yyyy-MM-dd');
                 return (
-                  <th key={dateStr} id={`date-col-${dateStr}`} className={`px-1 py-3 text-center font-medium min-w-[44px] border-r last:border-0 transition-colors duration-300 ${isDark ? 'border-slate-800/60' : 'border-slate-200'}`}>
+                  <th key={dateStr} id={`date-col-${dateStr}`} className={`px-1 py-3 text-center font-medium min-w-[44px] border-r last:border-0 transition-colors duration-300 ${isDark ? 'bg-[#1A233A] border-slate-800/60' : 'bg-slate-50 border-slate-200'}`}>
                     <div className={`flex flex-col items-center gap-1 ${isCurrent ? 'text-[#4F8AFB]' : ''}`}>
                       <span className="text-sm font-bold">{format(date, 'dd')}</span>
                       <span className="text-[10px] uppercase font-bold">{format(date, 'EEEEE')}</span>
@@ -179,7 +246,7 @@ export function HabitTable({ tasks, completions, dates, onToggle, onAdd, onUpdat
           </thead>
           <tbody className={`divide-y transition-colors duration-300 ${isDark ? 'divide-slate-800/60' : 'divide-slate-200'}`}>
             {tasks.map(task => (
-              <tr key={task.id} className={`transition-colors group ${isDark ? 'hover:bg-slate-800/30' : 'hover:bg-slate-100'}`}>
+              <tr key={task.id} id={`task-${task.id}`} className={`transition-colors group ${isDark ? 'hover:bg-slate-800/30' : 'hover:bg-slate-100'}`}>
                 <td className={`px-4 py-3 border-r sticky left-0 z-10 transition-colors shadow-[2px_0_5px_-2px_rgba(0,0,0,0.3)] ${isDark ? 'bg-[#151C2C] group-hover:bg-[#1c253a] border-slate-800/60' : 'bg-white group-hover:bg-slate-100 border-slate-200'}`}>
                   <div className="flex items-center justify-between gap-2">
                     {editingId === task.id ? (
@@ -214,13 +281,12 @@ export function HabitTable({ tasks, completions, dates, onToggle, onAdd, onUpdat
                   return (
                     <td key={dateStr} className={`px-1 py-3 text-center border-r last:border-0 transition-colors duration-300 ${isDark ? 'border-slate-800/60' : 'border-slate-200'}`}>
                       <button
-                        onClick={() => isCurrent && onToggle(task.id, dateStr)}
-                        disabled={!isCurrent}
+                        onClick={() => onToggle(task.id, dateStr)}
                         className={`w-6 h-6 rounded-md flex items-center justify-center mx-auto transition-all duration-300 ${
                           isCompleted
-                            ? `bg-[#10B981] text-white ${isCurrent ? 'shadow-[0_0_10px_rgba(16,185,129,0.5)]' : ''}`
-                            : `${isDark ? 'bg-[#1E293B] border-slate-700/50' : 'bg-slate-100 border-slate-300'} border ${isCurrent && isDark ? 'hover:border-slate-500' : isCurrent && !isDark ? 'hover:border-slate-400 hover:bg-slate-200' : ''}`
-                        } ${!isCurrent ? 'cursor-not-allowed opacity-60' : ''}`}
+                            ? `bg-[#10B981] text-white shadow-[0_0_10px_rgba(16,185,129,0.5)]`
+                            : `${isDark ? 'bg-[#1E293B] border-slate-700/50' : 'bg-slate-100 border-slate-300'} border ${isDark ? 'hover:border-slate-500' : 'hover:border-slate-400 hover:bg-slate-200'}`
+                        }`}
                       >
                         {isCompleted && <Check className="w-3.5 h-3.5" strokeWidth={3} />}
                       </button>
@@ -234,7 +300,7 @@ export function HabitTable({ tasks, completions, dates, onToggle, onAdd, onUpdat
       </div>
 
       {/* Custom Slider Footer */}
-      <div className={`flex items-center justify-between px-4 py-2 rounded-b-[24px] border-t transition-colors duration-300 ${isDark ? 'bg-[#151C2C] border-slate-800/60' : 'bg-white border-slate-200'}`}>
+      <div className={`flex items-center justify-between px-4 py-2 rounded-b-[24px] border-t shrink-0 transition-colors duration-300 ${isDark ? 'bg-[#151C2C] border-slate-800/60' : 'bg-white border-slate-200'}`}>
         <button onClick={() => scroll('left')} className="text-slate-600 hover:text-slate-400 p-1 transition-colors">
           <svg width="8" height="10" viewBox="0 0 8 10" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
             <path d="M8 10L0 5L8 0V10Z" />
@@ -263,6 +329,27 @@ export function HabitTable({ tasks, completions, dates, onToggle, onAdd, onUpdat
           </svg>
         </button>
       </div>
+
+      {/* Vertical Slider */}
+      {canScrollV && (
+        <div className="absolute right-1 top-[65px] bottom-[55px] w-4 flex flex-col items-center py-2 z-50">
+          <div 
+            ref={vSliderRef}
+            onPointerDown={handleVSliderPointerDown}
+            onPointerMove={handleVSliderPointerMove}
+            onPointerUp={handleVSliderPointerUp}
+            className={`w-1.5 h-full rounded-full relative transition-colors duration-300 cursor-pointer ${isDark ? 'bg-slate-800/50' : 'bg-slate-200'}`}
+          >
+            <div 
+              className={`absolute w-full rounded-full transition-all duration-100 ${isDraggingVSlider ? 'scale-x-150' : ''} ${isDark ? 'bg-slate-500' : 'bg-slate-400'}`} 
+              style={{ 
+                height: '40px', 
+                top: `calc(${vScrollProgress * 100}% - ${vScrollProgress * 40}px)` 
+              }} 
+            />
+          </div>
+        </div>
+      )}
     </div>
   );
 }

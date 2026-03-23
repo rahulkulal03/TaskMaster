@@ -28,7 +28,7 @@ export function HabitChart({ completions, currentMonth, totalTasks, isDark }: { 
   const displayDate = isSameMonth(today, currentMonth) ? today : startOfMonth(currentMonth);
 
   return (
-    <div className={`w-full rounded-[24px] border shadow-lg p-5 mb-2 flex flex-col transition-colors duration-300 ${isDark ? 'bg-[#151C2C] border-slate-800/60' : 'bg-white border-slate-200'}`}>
+    <div className={`w-full shrink-0 rounded-[24px] border shadow-lg p-5 mb-2 flex flex-col transition-colors duration-300 ${isDark ? 'bg-[#151C2C] border-slate-800/60' : 'bg-white border-slate-200'}`}>
       <div className="flex justify-between items-start mb-6">
         <div className="flex items-center gap-3">
           <LineChartIcon className={`w-6 h-6 ${isDark ? 'text-slate-200' : 'text-slate-700'}`} />
@@ -89,8 +89,8 @@ export function HabitChart({ completions, currentMonth, totalTasks, isDark }: { 
               strokeWidth={2} 
               fillOpacity={1} 
               fill="url(#colorCount)" 
-              dot={{ r: 3, fill: '#10B981', stroke: isDark ? '#151C2C' : '#ffffff', strokeWidth: 1 }} 
-              activeDot={{ r: 5, fill: '#4F8AFB', stroke: isDark ? '#151C2C' : '#ffffff' }} 
+              dot={{ r: 3, fill: '#ffffff', stroke: '#10B981', strokeWidth: 2 }} 
+              activeDot={{ r: 5, fill: '#ffffff', stroke: '#4F8AFB', strokeWidth: 2 }} 
             />
           </AreaChart>
         </ResponsiveContainer>

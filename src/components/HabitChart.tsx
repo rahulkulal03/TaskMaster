@@ -28,7 +28,7 @@ export function HabitChart({ completions, currentMonth, totalTasks, isDark }: { 
   const displayDate = isSameMonth(today, currentMonth) ? today : startOfMonth(currentMonth);
 
   return (
-    <div className={`w-full shrink-0 rounded-[24px] border shadow-lg p-5 mb-2 flex flex-col transition-colors duration-300 ${isDark ? 'bg-[#151C2C] border-slate-800/60' : 'bg-white border-slate-200'}`}>
+    <div className={`w-full h-full rounded-[24px] border shadow-lg p-5 flex flex-col transition-colors duration-300 ${isDark ? 'bg-[#151C2C] border-slate-800/60' : 'bg-white border-slate-200'}`}>
       <div className="flex justify-between items-start mb-6">
         <div className="flex items-center gap-3">
           <LineChartIcon className={`w-6 h-6 ${isDark ? 'text-slate-200' : 'text-slate-700'}`} />
@@ -50,7 +50,7 @@ export function HabitChart({ completions, currentMonth, totalTasks, isDark }: { 
         </span>
       </div>
 
-      <div className="w-full h-40">
+      <div className="w-full flex-1 min-h-[160px]">
         <ResponsiveContainer width="100%" height="100%">
           <AreaChart data={data} margin={{ top: 5, right: 0, left: -25, bottom: 0 }}>
             <defs>

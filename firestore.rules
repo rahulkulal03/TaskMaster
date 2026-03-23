@@ -1,0 +1,84 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    // ===============================================================
+    // Helper Functions
+    // ===============================================================
+    
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+    
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+    
+    function uidUnchanged() {
+      return !('uid' in request.resource.data) || request.resource.data.uid == request.auth.uid;
+    }
+    
+    function uidNotModified() {
+      return !('uid' in request.resource.data) || request.resource.data.uid == resource.data.uid;
+    }
+    
+    function hasOnlyAllowedFields(fields) {
+      return request.resource.data.keys().hasOnly(fields);
+    }
+    
+    // ===============================================================
+    // Domain Validators
+    // ===============================================================
+    
+    function isValidTask(data) {
+      return hasOnlyAllowedFields(['id', 'uid', 'title', 'createdAt']) &&
+             data.id is string && data.id.size() > 0 && data.id.size() < 100 &&
+             data.uid is string && data.uid.size() > 0 && data.uid.size() < 100 &&
+             data.title is string && data.title.size() > 0 && data.title.size() < 200 &&
+             data.createdAt is string; // ISO string
+    }
+    
+    function isValidCompletion(data) {
+      return hasOnlyAllowedFields(['id', 'uid', 'taskId', 'date', 'completed']) &&
+             data.id is string && data.id.size() > 0 && data.id.size() < 150 &&
+             data.uid is string && data.uid.size() > 0 && data.uid.size() < 100 &&
+             data.taskId is string && data.taskId.size() > 0 && data.taskId.size() < 100 &&
+             data.date is string && data.date.size() == 10 && // YYYY-MM-DD
+             data.completed is bool;
+    }
+
+    // ===============================================================
+    // Rules
+    // ===============================================================
+    
+    match /users/{userId} {
+      allow read: if isOwner(userId);
+      
+      match /tasks/{taskId} {
+        allow read: if isOwner(userId);
+        allow create: if isOwner(userId) && 
+                      isValidTask(request.resource.data) && 
+                      uidUnchanged();
+        allow update: if isOwner(userId) && 
+                      isValidTask(request.resource.data) && 
+                      uidNotModified() &&
+                      request.resource.data.createdAt == resource.data.createdAt;
+        allow delete: if isOwner(userId);
+      }
+      
+      match /completions/{completionId} {
+        allow read: if isOwner(userId);
+        allow create: if isOwner(userId) && 
+                      isValidCompletion(request.resource.data) && 
+                      uidUnchanged();
+        allow update: if isOwner(userId) && 
+                      isValidCompletion(request.resource.data) && 
+                      uidNotModified() &&
+                      request.resource.data.taskId == resource.data.taskId &&
+                      request.resource.data.date == resource.data.date;
+        allow delete: if isOwner(userId);
+      }
+    }
+  }
+}

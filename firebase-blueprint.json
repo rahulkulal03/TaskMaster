@@ -1,0 +1,67 @@
+{
+  "entities": {
+    "Task": {
+      "title": "Task",
+      "description": "A daily task to be tracked.",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the task."
+        },
+        "uid": {
+          "type": "string",
+          "description": "The user ID of the owner."
+        },
+        "title": {
+          "type": "string",
+          "description": "The name of the task."
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "When the task was created."
+        }
+      },
+      "required": ["id", "uid", "title", "createdAt"]
+    },
+    "Completion": {
+      "title": "Completion",
+      "description": "A record of a task being completed on a specific date.",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the completion (taskId_date)."
+        },
+        "uid": {
+          "type": "string",
+          "description": "The user ID of the owner."
+        },
+        "taskId": {
+          "type": "string",
+          "description": "The ID of the task."
+        },
+        "date": {
+          "type": "string",
+          "description": "The date of completion (YYYY-MM-DD)."
+        },
+        "completed": {
+          "type": "boolean",
+          "description": "Whether the task was completed."
+        }
+      },
+      "required": ["id", "uid", "taskId", "date", "completed"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}/tasks/{taskId}": {
+      "schema": { "$ref": "#/entities/Task" },
+      "description": "Tasks belonging to a specific user."
+    },
+    "/users/{userId}/completions/{completionId}": {
+      "schema": { "$ref": "#/entities/Completion" },
+      "description": "Task completions belonging to a specific user."
+    }
+  }
+}

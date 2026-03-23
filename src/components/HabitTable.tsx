@@ -204,7 +204,7 @@ export function HabitTable({ tasks, completions, dates, onToggle, onAdd, onUpdat
   };
 
   return (
-    <div className={`relative rounded-[24px] border shadow-xl overflow-visible mt-4 flex flex-col flex-1 min-h-0 transition-colors duration-300 ${isDark ? 'bg-[#151C2C] border-slate-800/60' : 'bg-white border-slate-200'}`}>
+    <div className={`relative rounded-[24px] border shadow-xl overflow-visible flex flex-col flex-1 min-h-0 transition-colors duration-300 ${isDark ? 'bg-[#151C2C] border-slate-800/60' : 'bg-white border-slate-200'}`}>
       <div 
         className={`p-4 flex items-center gap-3 border-b pr-16 rounded-t-[24px] transition-colors duration-300 select-none shrink-0 ${isDark ? 'bg-[#1A233A] border-slate-800/60' : 'bg-slate-50 border-slate-200'} ${isDragging ? 'cursor-grabbing' : 'cursor-grab'}`}
         onMouseDown={handleMouseDown}
@@ -226,7 +226,7 @@ export function HabitTable({ tasks, completions, dates, onToggle, onAdd, onUpdat
         onMouseDown={handleMouseDown}
         className={`overflow-auto flex-1 min-h-0 custom-scrollbar ${isDragging ? 'cursor-grabbing' : 'cursor-grab'}`}
       >
-        <table className="w-full text-sm text-left border-collapse select-none mb-12">
+        <table className="w-full text-sm text-left border-collapse select-none mb-4">
           <thead className={`text-xs border-b sticky top-0 z-30 transition-colors duration-300 ${isDark ? 'text-slate-400 border-slate-800/60 bg-[#1A233A]' : 'text-slate-500 border-slate-200 bg-slate-50'}`}>
             <tr>
               <th className={`px-4 py-3 font-medium min-w-[120px] sticky left-0 z-40 border-r shadow-[2px_0_5px_-2px_rgba(0,0,0,0.3)] transition-colors duration-300 ${isDark ? 'bg-[#1A233A] border-slate-800/60' : 'bg-slate-50 border-slate-200'}`}>Task Name</th>
@@ -281,12 +281,13 @@ export function HabitTable({ tasks, completions, dates, onToggle, onAdd, onUpdat
                   return (
                     <td key={dateStr} className={`px-1 py-3 text-center border-r last:border-0 transition-colors duration-300 ${isDark ? 'border-slate-800/60' : 'border-slate-200'}`}>
                       <button
-                        onClick={() => onToggle(task.id, dateStr)}
+                        onClick={() => isCurrent && onToggle(task.id, dateStr)}
+                        disabled={!isCurrent}
                         className={`w-6 h-6 rounded-md flex items-center justify-center mx-auto transition-all duration-300 ${
                           isCompleted
                             ? `bg-[#10B981] text-white shadow-[0_0_10px_rgba(16,185,129,0.5)]`
-                            : `${isDark ? 'bg-[#1E293B] border-slate-700/50' : 'bg-slate-100 border-slate-300'} border ${isDark ? 'hover:border-slate-500' : 'hover:border-slate-400 hover:bg-slate-200'}`
-                        }`}
+                            : `${isDark ? 'bg-[#1E293B] border-slate-700/50' : 'bg-slate-100 border-slate-300'} border ${isCurrent ? (isDark ? 'hover:border-slate-500' : 'hover:border-slate-400 hover:bg-slate-200') : ''}`
+                        } ${!isCurrent ? 'opacity-40 cursor-not-allowed' : 'cursor-pointer'}`}
                       >
                         {isCompleted && <Check className="w-3.5 h-3.5" strokeWidth={3} />}
                       </button>

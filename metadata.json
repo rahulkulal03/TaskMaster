@@ -1,0 +1,5 @@
+{
+  "name": "TaskMaster",
+  "description": "A daily task tracking application with an Excel-like table and a 1-month activity graph.",
+  "requestFramePermissions": []
+}

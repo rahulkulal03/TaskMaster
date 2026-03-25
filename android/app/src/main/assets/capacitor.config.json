@@ -1,5 +1,6 @@
 {
 	"appId": "com.taskmaster.app",
 	"appName": "TaskMaster",
-	"webDir": "dist"
+	"webDir": "dist",
+	"bundledWebRuntime": false
 }

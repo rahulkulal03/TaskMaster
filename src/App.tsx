@@ -3,16 +3,9 @@ import { Task, Completions } from './types';
 import { HabitTable } from './components/HabitTable';
 import { HabitChart } from './components/HabitChart';
 import { subDays, format, addMonths, subMonths, startOfMonth, endOfMonth, eachDayOfInterval } from 'date-fns';
-import { Layers, ChevronLeft, ChevronRight, Trophy, Sun, Moon, LogOut, LogIn } from 'lucide-react';
-import { auth, db, googleProvider } from './firebase';
-import { signInWithPopup, signOut, onAuthStateChanged, User } from 'firebase/auth';
-import { collection, doc, setDoc, deleteDoc, onSnapshot, query, getDocFromServer } from 'firebase/firestore';
-import { handleFirestoreError, OperationType } from './utils/errorHandling';
+import { Layers, ChevronLeft, ChevronRight, Trophy, Sun, Moon } from 'lucide-react';
 
 export default function App() {
-  const [user, setUser] = useState<User | null>(null);
-  const [isAuthReady, setIsAuthReady] = useState(false);
-  
   const [currentMonth, setCurrentMonth] = useState(new Date());
   const [showCelebration, setShowCelebration] = useState(false);
   const [hasCelebratedToday, setHasCelebratedToday] = useState(false);
@@ -22,78 +15,27 @@ export default function App() {
   });
 
   const [activeTab, setActiveTab] = useState<'home' | 'overview'>('home');
-  const [tasks, setTasks] = useState<Task[]>([]);
-  const [completions, setCompletions] = useState<Completions>({});
+  const [tasks, setTasks] = useState<Task[]>(() => {
+    const saved = localStorage.getItem('habit_tasks');
+    return saved ? JSON.parse(saved) : [];
+  });
+  const [completions, setCompletions] = useState<Completions>(() => {
+    const saved = localStorage.getItem('habit_completions');
+    return saved ? JSON.parse(saved) : {};
+  });
 
   useEffect(() => {
     localStorage.setItem('habit_theme', isDark ? 'dark' : 'light');
     document.body.style.backgroundColor = isDark ? '#0B1120' : '#f8fafc';
   }, [isDark]);
 
-  // Test connection on boot
   useEffect(() => {
-    async function testConnection() {
-      try {
-        await getDocFromServer(doc(db, 'test', 'connection'));
-      } catch (error) {
-        if(error instanceof Error && error.message.includes('the client is offline')) {
-          console.error("Please check your Firebase configuration. ");
-        }
-      }
-    }
-    testConnection();
-  }, []);
+    localStorage.setItem('habit_tasks', JSON.stringify(tasks));
+  }, [tasks]);
 
-  // Auth Listener
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
-      setUser(currentUser);
-      setIsAuthReady(true);
-    });
-    return () => unsubscribe();
-  }, []);
-
-  // Data Fetching
-  useEffect(() => {
-    if (!isAuthReady || !user) {
-      setTasks([]);
-      setCompletions({});
-      return;
-    }
-
-    const tasksRef = collection(db, `users/${user.uid}/tasks`);
-    const unsubscribeTasks = onSnapshot(tasksRef, (snapshot) => {
-      const fetchedTasks: Task[] = [];
-      snapshot.forEach((doc) => {
-        fetchedTasks.push(doc.data() as Task);
-      });
-      // Sort by createdAt locally if needed, or just use order
-      fetchedTasks.sort((a, b) => (a.createdAt || '').localeCompare(b.createdAt || ''));
-      setTasks(fetchedTasks);
-    }, (error) => {
-      handleFirestoreError(error, OperationType.LIST, `users/${user.uid}/tasks`);
-    });
-
-    const completionsRef = collection(db, `users/${user.uid}/completions`);
-    const unsubscribeCompletions = onSnapshot(completionsRef, (snapshot) => {
-      const newCompletions: Completions = {};
-      snapshot.forEach((doc) => {
-        const data = doc.data();
-        if (!newCompletions[data.taskId]) {
-          newCompletions[data.taskId] = {};
-        }
-        newCompletions[data.taskId][data.date] = data.completed;
-      });
-      setCompletions(newCompletions);
-    }, (error) => {
-      handleFirestoreError(error, OperationType.LIST, `users/${user.uid}/completions`);
-    });
-
-    return () => {
-      unsubscribeTasks();
-      unsubscribeCompletions();
-    };
-  }, [user, isAuthReady]);
+    localStorage.setItem('habit_completions', JSON.stringify(completions));
+  }, [completions]);
 
   useEffect(() => {
     const todayStr = format(new Date(), 'yyyy-MM-dd');
@@ -114,140 +56,48 @@ export default function App() {
     return eachDayOfInterval({ start, end });
   }, [currentMonth]);
 
-  const handleToggle = async (taskId: string, dateStr: string) => {
-    if (!user) return;
-    const isCompleted = !(completions[taskId]?.[dateStr]);
-    const completionId = `${taskId}_${dateStr}`;
-    const path = `users/${user.uid}/completions/${completionId}`;
-    
-    // Optimistic update
-    setCompletions(prev => ({
-      ...prev,
-      [taskId]: {
-        ...(prev[taskId] || {}),
-        [dateStr]: isCompleted
-      }
-    }));
-
-    try {
-      await setDoc(doc(db, path), {
-        id: completionId,
-        uid: user.uid,
-        taskId,
-        date: dateStr,
-        completed: isCompleted
-      });
-    } catch (error) {
-      // Revert on failure
-      setCompletions(prev => ({
+  const handleToggle = (taskId: string, dateStr: string) => {
+    setCompletions(prev => {
+      const isCompleted = !(prev[taskId]?.[dateStr]);
+      return {
         ...prev,
         [taskId]: {
           ...(prev[taskId] || {}),
-          [dateStr]: !isCompleted
+          [dateStr]: isCompleted
         }
-      }));
-      handleFirestoreError(error, OperationType.WRITE, path);
-    }
+      };
+    });
   };
 
   const handleAddTask = () => {
-    if (!user) return;
     const newId = Date.now().toString() + Math.random().toString(36).substring(2);
     const newTask = { 
       id: newId, 
-      uid: user.uid,
-      title: 'New Task',
+      uid: 'local-user',
+      title: '',
       createdAt: new Date().toISOString()
     };
     
-    const path = `users/${user.uid}/tasks/${newId}`;
-    
-    // Optimistic update
     setTasks(prev => [...prev, newTask]);
-    
-    setDoc(doc(db, path), newTask).catch(error => {
-      setTasks(prev => prev.filter(t => t.id !== newId));
-      handleFirestoreError(error, OperationType.WRITE, path);
-    });
-    
     return newId;
   };
 
-  const handleUpdateTask = async (id: string, title: string) => {
-    if (!user) return;
-    const task = tasks.find(t => t.id === id);
-    if (!task) return;
-    
-    const path = `users/${user.uid}/tasks/${id}`;
-    
-    // Optimistic update
+  const handleUpdateTask = (id: string, title: string) => {
     setTasks(prev => prev.map(t => t.id === id ? { ...t, title } : t));
-    
-    try {
-      await setDoc(doc(db, path), { ...task, title }, { merge: true });
-    } catch (error) {
-      setTasks(prev => prev.map(t => t.id === id ? task : t));
-      handleFirestoreError(error, OperationType.WRITE, path);
-    }
   };
 
-  const handleDeleteTask = async (id: string) => {
-    if (!user) return;
-    const path = `users/${user.uid}/tasks/${id}`;
-    
-    // Optimistic update
-    const previousTasks = [...tasks];
+  const handleDeleteTask = (id: string) => {
     setTasks(prev => prev.filter(t => t.id !== id));
-    
-    try {
-      await deleteDoc(doc(db, path));
-      // Optionally delete completions as well, but for now just deleting task is fine
-    } catch (error) {
-      setTasks(previousTasks);
-      handleFirestoreError(error, OperationType.DELETE, path);
-    }
+    setCompletions(prev => {
+      const newCompletions = { ...prev };
+      delete newCompletions[id];
+      return newCompletions;
+    });
   };
 
   const handlePrevMonth = () => setCurrentMonth(prev => subMonths(prev, 1));
   const handleNextMonth = () => setCurrentMonth(prev => addMonths(prev, 1));
   const handleToday = () => setCurrentMonth(new Date());
-
-  const handleLogin = async () => {
-    try {
-      await signInWithPopup(auth, googleProvider);
-    } catch (error) {
-      console.error("Login failed", error);
-    }
-  };
-
-  if (!isAuthReady) {
-    return (
-      <div className={`h-[100dvh] flex items-center justify-center ${isDark ? 'bg-[#0B1120]' : 'bg-slate-50'}`}>
-        <div className="w-8 h-8 border-4 border-[#4F8AFB] border-t-transparent rounded-full animate-spin"></div>
-      </div>
-    );
-  }
-
-  if (!user) {
-    return (
-      <div className={`h-[100dvh] flex items-center justify-center font-sans transition-colors duration-300 ${isDark ? 'bg-[#0B1120] text-slate-200' : 'bg-slate-50 text-slate-800'}`}>
-        <div className={`max-w-md w-full p-8 rounded-3xl shadow-2xl text-center border ${isDark ? 'bg-[#151C2C] border-slate-800/60' : 'bg-white border-slate-200'}`}>
-          <div className="w-16 h-16 bg-[#4F8AFB]/10 rounded-full flex items-center justify-center mx-auto mb-6">
-            <Layers className="w-8 h-8 text-[#4F8AFB]" />
-          </div>
-          <h1 className={`text-2xl font-bold mb-2 ${isDark ? 'text-white' : 'text-slate-900'}`}>TaskMaster</h1>
-          <p className={`mb-8 ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>Track your daily habits and achieve your goals. Sign in to sync your progress across devices.</p>
-          <button 
-            onClick={handleLogin}
-            className="w-full flex items-center justify-center gap-2 py-3 bg-[#4F8AFB] hover:bg-blue-500 text-white rounded-xl font-medium transition-colors"
-          >
-            <LogIn className="w-5 h-5" />
-            Sign in with Google
-          </button>
-        </div>
-      </div>
-    );
-  }
 
   return (
     <div className={`h-[100dvh] overflow-hidden font-sans transition-colors duration-300 ${isDark ? 'bg-[#0B1120] text-slate-200' : 'bg-slate-50 text-slate-800'}`}>
@@ -265,13 +115,6 @@ export default function App() {
                 className={`w-8 h-8 rounded-full flex items-center justify-center transition-colors ${isDark ? 'bg-slate-800 text-yellow-400 hover:bg-slate-700' : 'bg-slate-200 text-slate-700 hover:bg-slate-300'}`}
               >
                 {isDark ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
-              </button>
-              <button 
-                onClick={() => signOut(auth)}
-                className={`w-8 h-8 rounded-full flex items-center justify-center transition-colors ${isDark ? 'bg-slate-800 text-slate-400 hover:bg-slate-700 hover:text-red-400' : 'bg-slate-200 text-slate-600 hover:bg-slate-300 hover:text-red-500'}`}
-                title="Sign Out"
-              >
-                <LogOut className="w-4 h-4" />
               </button>
             </div>
           </div>
@@ -333,7 +176,7 @@ export default function App() {
           
           <div className="text-center mt-auto pt-4 pb-2 space-y-1 shrink-0">
             <p className={`font-bold italic text-[13px] tracking-wide transition-colors ${isDark ? 'text-white' : 'text-slate-800'}`}>
-              "Kill the boy, let the man be born."
+              "Kill the boy, let the man be born"
             </p>
             <p className={`text-[10px] font-medium transition-colors ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>Developed by RK</p>
           </div>

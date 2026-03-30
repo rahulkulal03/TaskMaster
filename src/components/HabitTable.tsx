@@ -3,6 +3,8 @@ import { Task, Completions } from '../types';
 import { format, isToday } from 'date-fns';
 import { Plus, Pencil, Trash2, Check, LayoutGrid } from 'lucide-react';
 
+import { t } from '../translations';
+
 interface Props {
   tasks: Task[];
   completions: Completions;
@@ -12,9 +14,10 @@ interface Props {
   onUpdate: (id: string, title: string) => void;
   onDelete: (id: string) => void;
   isDark: boolean;
+  language: string;
 }
 
-export function HabitTable({ tasks, completions, dates, onToggle, onAdd, onUpdate, onDelete, isDark }: Props) {
+export function HabitTable({ tasks, completions, dates, onToggle, onAdd, onUpdate, onDelete, isDark, language }: Props) {
   const [editingId, setEditingId] = useState<string | null>(null);
   const editInputRef = useRef<HTMLInputElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -206,19 +209,22 @@ export function HabitTable({ tasks, completions, dates, onToggle, onAdd, onUpdat
   return (
     <div className={`relative rounded-[24px] border shadow-xl overflow-visible flex flex-col flex-1 min-h-0 transition-colors duration-300 ${isDark ? 'bg-[#151C2C] border-slate-800/60' : 'bg-white border-slate-200'}`}>
       <div 
-        className={`p-4 flex items-center gap-3 border-b pr-16 rounded-t-[24px] transition-colors duration-300 select-none shrink-0 ${isDark ? 'bg-[#1A233A] border-slate-800/60' : 'bg-slate-50 border-slate-200'} ${isDragging ? 'cursor-grabbing' : 'cursor-grab'}`}
+        className={`p-4 flex items-center justify-between border-b rounded-t-[24px] transition-colors duration-300 select-none shrink-0 ${isDark ? 'bg-[#1A233A] border-slate-800/60' : 'bg-slate-50 border-slate-200'} ${isDragging ? 'cursor-grabbing' : 'cursor-grab'}`}
         onMouseDown={handleMouseDown}
       >
-        <LayoutGrid className={`w-5 h-5 ${isDark ? 'text-slate-200' : 'text-slate-700'}`} />
-        <h2 className={`text-base font-bold tracking-wide transition-colors ${isDark ? 'text-white' : 'text-slate-900'}`}>Daily Tasks Tracker</h2>
+        <div className="flex items-center gap-3">
+          <LayoutGrid className={`w-5 h-5 ${isDark ? 'text-slate-200' : 'text-slate-700'}`} />
+          <h2 className={`text-base font-bold tracking-wide transition-colors ${isDark ? 'text-white' : 'text-slate-900'}`}>{t(language, 'home.daily_tasks')}</h2>
+        </div>
+        <button
+          onClick={(e) => { e.stopPropagation(); handleAddNew(); }}
+          onMouseDown={(e) => e.stopPropagation()}
+          className="w-10 h-10 bg-[#4F8AFB] hover:bg-blue-400 text-white rounded-full flex items-center justify-center shadow-md transition-all z-50 shrink-0"
+          title={t(language, 'home.add_task')}
+        >
+          <Plus className="w-5 h-5" strokeWidth={2.5} />
+        </button>
       </div>
-
-      <button
-        onClick={handleAddNew}
-        className="absolute -top-6 right-4 w-14 h-14 bg-[#4F8AFB] hover:bg-blue-400 text-white rounded-full flex items-center justify-center shadow-[0_4px_20px_rgba(79,138,251,0.5)] transition-all z-50"
-      >
-        <Plus className="w-7 h-7" strokeWidth={2.5} />
-      </button>
 
       <div 
         ref={scrollRef}
@@ -229,7 +235,7 @@ export function HabitTable({ tasks, completions, dates, onToggle, onAdd, onUpdat
         <table className="w-full text-sm text-left border-collapse select-none mb-4">
           <thead className={`text-xs border-b sticky top-0 z-30 transition-colors duration-300 ${isDark ? 'text-slate-400 border-slate-800/60 bg-[#1A233A]' : 'text-slate-500 border-slate-200 bg-slate-50'}`}>
             <tr>
-              <th className={`px-4 py-3 font-medium min-w-[120px] sticky left-0 z-40 border-r shadow-[2px_0_5px_-2px_rgba(0,0,0,0.3)] transition-colors duration-300 ${isDark ? 'bg-[#1A233A] border-slate-800/60' : 'bg-slate-50 border-slate-200'}`}>Task Name</th>
+              <th className={`px-4 py-3 font-medium min-w-[120px] sticky left-0 z-40 border-r shadow-[2px_0_5px_-2px_rgba(0,0,0,0.3)] transition-colors duration-300 ${isDark ? 'bg-[#1A233A] border-slate-800/60' : 'bg-slate-50 border-slate-200'}`}>{t(language, 'home.task_name')}</th>
               {dates.map(date => {
                 const isCurrent = isToday(date);
                 const dateStr = format(date, 'yyyy-MM-dd');
@@ -237,7 +243,7 @@ export function HabitTable({ tasks, completions, dates, onToggle, onAdd, onUpdat
                   <th key={dateStr} id={`date-col-${dateStr}`} className={`px-1 py-3 text-center font-medium min-w-[44px] border-r last:border-0 transition-colors duration-300 ${isDark ? 'bg-[#1A233A] border-slate-800/60' : 'bg-slate-50 border-slate-200'}`}>
                     <div className={`flex flex-col items-center gap-1 ${isCurrent ? 'text-[#4F8AFB]' : ''}`}>
                       <span className="text-sm font-bold">{format(date, 'dd')}</span>
-                      <span className="text-[10px] uppercase font-bold">{format(date, 'EEEEE')}</span>
+                      <span className="text-[10px] uppercase font-bold">{date.toLocaleDateString(language, { weekday: 'narrow' })}</span>
                     </div>
                   </th>
                 );
@@ -264,7 +270,7 @@ export function HabitTable({ tasks, completions, dates, onToggle, onAdd, onUpdat
                         {task.title}
                       </span>
                     )}
-                    <div className="flex items-center gap-2 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity">
+                    <div className="flex items-center gap-2 transition-opacity">
                       <button onClick={() => setEditingId(task.id)} className="text-slate-500 hover:text-slate-300">
                         <Pencil className="w-3.5 h-3.5" />
                       </button>
@@ -283,13 +289,13 @@ export function HabitTable({ tasks, completions, dates, onToggle, onAdd, onUpdat
                       <button
                         onClick={() => isCurrent && onToggle(task.id, dateStr)}
                         disabled={!isCurrent}
-                        className={`w-6 h-6 rounded-md flex items-center justify-center mx-auto transition-all duration-300 ${
+                        className={`w-8 h-8 rounded-md flex items-center justify-center mx-auto transition-all duration-300 ${
                           isCompleted
                             ? `bg-[#10B981] text-white shadow-[0_0_10px_rgba(16,185,129,0.5)]`
                             : `${isDark ? 'bg-[#1E293B] border-slate-700/50' : 'bg-slate-100 border-slate-300'} border ${isCurrent ? (isDark ? 'hover:border-slate-500' : 'hover:border-slate-400 hover:bg-slate-200') : ''}`
                         } ${!isCurrent ? 'opacity-40 cursor-not-allowed' : 'cursor-pointer'}`}
                       >
-                        {isCompleted && <Check className="w-3.5 h-3.5" strokeWidth={3} />}
+                        {isCompleted && <Check className="w-4 h-4" strokeWidth={3} />}
                       </button>
                     </td>
                   );

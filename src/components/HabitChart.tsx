@@ -4,7 +4,9 @@ import { format, startOfMonth, endOfMonth, eachDayOfInterval, isSameMonth } from
 import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from 'recharts';
 import { LineChart as LineChartIcon } from 'lucide-react';
 
-export function HabitChart({ completions, currentMonth, totalTasks, isDark }: { completions: Completions, currentMonth: Date, totalTasks: number, isDark: boolean }) {
+import { t } from '../translations';
+
+export function HabitChart({ completions, currentMonth, totalTasks, isDark, language }: { completions: Completions, currentMonth: Date, totalTasks: number, isDark: boolean, language: string }) {
   const data = useMemo(() => {
     const start = startOfMonth(currentMonth);
     const end = endOfMonth(currentMonth);
@@ -33,20 +35,20 @@ export function HabitChart({ completions, currentMonth, totalTasks, isDark }: { 
         <div className="flex items-center gap-3">
           <LineChartIcon className={`w-6 h-6 ${isDark ? 'text-slate-200' : 'text-slate-700'}`} />
           <h2 className={`text-lg font-bold leading-tight transition-colors ${isDark ? 'text-white' : 'text-slate-900'}`}>
-            Monthly<br/>Overview
+            {t(language, 'overview.monthly_overview')}
           </h2>
         </div>
         <div className={`text-sm text-right max-w-[120px] transition-colors ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
-          {totalCompletions} Completions This Month
+          {totalCompletions} {t(language, 'overview.completions_this_month')}
         </div>
       </div>
 
       <div className="flex flex-col items-center mb-6">
         <span className={`text-sm font-semibold tracking-widest uppercase mb-1 transition-colors ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
-          {format(displayDate, 'EEEE')}
+          {displayDate.toLocaleDateString(language, { weekday: 'long' })}
         </span>
         <span className={`text-4xl font-bold transition-colors ${isDark ? 'text-slate-200' : 'text-slate-800'}`}>
-          {format(displayDate, 'MMM d')}
+          {displayDate.toLocaleDateString(language, { month: 'short', day: 'numeric' })}
         </span>
       </div>
 

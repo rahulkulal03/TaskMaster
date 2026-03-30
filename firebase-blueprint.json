@@ -23,7 +23,12 @@
           "description": "When the task was created."
         }
       },
-      "required": ["id", "uid", "title", "createdAt"]
+      "required": [
+        "id",
+        "uid",
+        "title",
+        "createdAt"
+      ]
     },
     "Completion": {
       "title": "Completion",
@@ -51,17 +56,156 @@
           "description": "Whether the task was completed."
         }
       },
-      "required": ["id", "uid", "taskId", "date", "completed"]
+      "required": [
+        "id",
+        "uid",
+        "taskId",
+        "date",
+        "completed"
+      ]
+    },
+    "Reminder": {
+      "title": "Reminder",
+      "description": "A reminder for a specific date and time.",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the reminder."
+        },
+        "uid": {
+          "type": "string",
+          "description": "The user ID of the owner."
+        },
+        "text": {
+          "type": "string",
+          "description": "The reminder text."
+        },
+        "date": {
+          "type": "string",
+          "description": "The date of the reminder (YYYY-MM-DD)."
+        },
+        "time": {
+          "type": "string",
+          "description": "The time of the reminder (HH:mm)."
+        },
+        "completed": {
+          "type": "boolean",
+          "description": "Whether the reminder is completed."
+        },
+        "notified": {
+          "type": "boolean",
+          "description": "Whether the user has been notified."
+        }
+      },
+      "required": [
+        "id",
+        "uid",
+        "text",
+        "date",
+        "time",
+        "completed"
+      ]
+    },
+    "ProfileSettings": {
+      "title": "ProfileSettings",
+      "description": "User profile settings.",
+      "type": "object",
+      "properties": {
+        "photoUrl": {
+          "type": "string",
+          "description": "Base64 encoded profile image."
+        },
+        "language": {
+          "type": "string",
+          "description": "Selected language code."
+        },
+        "biometricEnabled": {
+          "type": "boolean",
+          "description": "Whether biometric authentication is enabled."
+        },
+        "alarmSound": {
+          "type": "string",
+          "description": "Selected alarm sound ID."
+        }
+      }
+    },
+    "User": {
+      "title": "User",
+      "description": "User login details.",
+      "type": "object",
+      "properties": {
+        "uid": {
+          "type": "string",
+          "description": "The user ID."
+        },
+        "email": {
+          "type": "string",
+          "description": "The user's email address."
+        },
+        "displayName": {
+          "type": "string",
+          "description": "The user's display name."
+        },
+        "photoURL": {
+          "type": "string",
+          "description": "The user's photo URL."
+        },
+        "isAnonymous": {
+          "type": "boolean",
+          "description": "Whether the user is anonymous."
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "When the user was created."
+        },
+        "lastLogin": {
+          "type": "string",
+          "format": "date-time",
+          "description": "When the user last logged in."
+        },
+        "dob": {
+          "type": "string",
+          "format": "date",
+          "description": "The user's date of birth."
+        }
+      },
+      "required": [
+        "uid"
+      ]
     }
   },
   "firestore": {
     "/users/{userId}/tasks/{taskId}": {
-      "schema": { "$ref": "#/entities/Task" },
+      "schema": {
+        "$ref": "#/entities/Task"
+      },
       "description": "Tasks belonging to a specific user."
     },
     "/users/{userId}/completions/{completionId}": {
-      "schema": { "$ref": "#/entities/Completion" },
+      "schema": {
+        "$ref": "#/entities/Completion"
+      },
       "description": "Task completions belonging to a specific user."
+    },
+    "/users/{userId}/reminders/{reminderId}": {
+      "schema": {
+        "$ref": "#/entities/Reminder"
+      },
+      "description": "Reminders belonging to a specific user."
+    },
+    "/users/{userId}/settings/profile": {
+      "schema": {
+        "$ref": "#/entities/ProfileSettings"
+      },
+      "description": "Profile settings for a specific user."
+    },
+    "/users/{userId}": {
+      "schema": {
+        "$ref": "#/entities/User"
+      },
+      "description": "User login details."
     }
   }
 }

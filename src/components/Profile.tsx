@@ -1,8 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { LogOut, Camera, Globe, Fingerprint, Bell, Info, ChevronRight, Check, Play, Square, Mail, AlertTriangle } from 'lucide-react';
-import { auth, db, googleProvider } from '../firebase';
-import { linkWithPopup, signInWithCredential, GoogleAuthProvider } from 'firebase/auth';
-import { doc, getDoc, setDoc } from 'firebase/firestore';
+import { Camera, Globe, Fingerprint, Bell, Info, ChevronRight, Check, Play, Square } from 'lucide-react';
+import { auth, db } from '../firebase';
+import { doc, setDoc, onSnapshot } from 'firebase/firestore';
 import { handleFirestoreError, OperationType } from '../utils/firebaseUtils';
 import { playAlarmSound } from '../utils/audio';
 import { ALARM_SOUNDS, LANGUAGES } from '../constants';
@@ -26,9 +25,6 @@ export function Profile({ isDark, user, userData, language }: ProfileProps) {
   const [isEditingProfile, setIsEditingProfile] = useState(false);
   const [editName, setEditName] = useState('');
   const [editDob, setEditDob] = useState('');
-  const [showGoogleErrorModal, setShowGoogleErrorModal] = useState(false);
-  const [googleErrorCredential, setGoogleErrorCredential] = useState<any>(null);
-  const [googleConnectMessage, setGoogleConnectMessage] = useState<{type: 'success' | 'error', text: string} | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const previewAudioRef = useRef<{ stop: () => void } | null>(null);
 
@@ -48,29 +44,28 @@ export function Profile({ isDark, user, userData, language }: ProfileProps) {
   }, []);
 
   useEffect(() => {
-    const loadProfile = async () => {
-      if (!user?.uid) return;
-      try {
-        const docRef = doc(db, `users/${user.uid}/settings/profile`);
-        const docSnap = await getDoc(docRef);
-        if (docSnap.exists()) {
-          const data = docSnap.data();
-          if (data.photoUrl) setProfileImage(data.photoUrl);
-          if (data.biometricEnabled !== undefined) setBiometricEnabled(data.biometricEnabled);
-          if (data.alarmSound) setAlarmSound(data.alarmSound);
-        }
-      } catch (error) {
-        handleFirestoreError(error, OperationType.GET, `users/${user.uid}/settings/profile`);
+    if (!user?.uid) return;
+    const docRef = doc(db, `users/${user.uid}/settings/profile`);
+    const unsubscribe = onSnapshot(docRef, (docSnap) => {
+      if (docSnap.exists()) {
+        const data = docSnap.data();
+        if (data.photoUrl) setProfileImage(data.photoUrl);
+        if (data.biometricEnabled !== undefined) setBiometricEnabled(data.biometricEnabled);
+        if (data.alarmSound) setAlarmSound(data.alarmSound);
       }
-    };
-    loadProfile();
+    }, (error) => {
+      handleFirestoreError(error, OperationType.GET, `users/${user.uid}/settings/profile`);
+    });
+    return () => unsubscribe();
   }, [user]);
 
   const saveProfile = async (updates: any) => {
     if (!user?.uid) return;
     try {
       const docRef = doc(db, `users/${user.uid}/settings/profile`);
-      await setDoc(docRef, updates, { merge: true });
+      setDoc(docRef, updates, { merge: true }).catch(error => {
+        console.error('Failed to save profile', error);
+      });
     } catch (error) {
       handleFirestoreError(error, OperationType.UPDATE, `users/${user.uid}/settings/profile`);
     }
@@ -142,82 +137,21 @@ export function Profile({ isDark, user, userData, language }: ProfileProps) {
     }
   };
 
-  const handleLogout = () => {
-    auth.signOut();
-  };
-
   const handleSaveProfileDetails = async () => {
     if (!user?.uid) return;
     if (!editName.trim() || !editDob) {
       // Don't save if name or dob is empty
       return;
     }
-    try {
-      const userRef = doc(db, 'users', user.uid);
-      await setDoc(userRef, {
-        displayName: editName.trim(),
-        dob: editDob
-      }, { merge: true });
-      setIsEditingProfile(false);
-    } catch (error) {
-      handleFirestoreError(error, OperationType.UPDATE, `users/${user.uid}`);
-    }
+    const userRef = doc(db, 'users', user.uid);
+    setDoc(userRef, {
+      displayName: editName.trim(),
+      dob: editDob
+    }, { merge: true }).catch(error => {
+      console.error('Failed to save profile details', error);
+    });
+    setIsEditingProfile(false);
   };
-
-  const handleConnectGoogle = async () => {
-    if (!auth.currentUser) return;
-    setGoogleConnectMessage(null);
-    try {
-      const result = await linkWithPopup(auth.currentUser, googleProvider);
-      
-      // Update user document with new Google info
-      const userRef = doc(db, 'users', auth.currentUser.uid);
-      const updates: any = {
-        isAnonymous: false
-      };
-      if (result.user.email) {
-        updates.email = result.user.email;
-      }
-      if (result.user.displayName || userData?.displayName) {
-        updates.displayName = result.user.displayName || userData?.displayName;
-      }
-      if (result.user.photoURL || userData?.photoURL) {
-        updates.photoURL = result.user.photoURL || userData?.photoURL;
-      }
-      
-      await setDoc(userRef, updates, { merge: true });
-      
-      setGoogleConnectMessage({ type: 'success', text: 'Successfully connected to Google account!' });
-    } catch (error: any) {
-      console.error('Error connecting to Google:', error);
-      if (error.code === 'auth/credential-already-in-use') {
-        const credential = GoogleAuthProvider.credentialFromError(error);
-        if (credential) {
-          setGoogleErrorCredential(credential);
-          setShowGoogleErrorModal(true);
-        } else {
-          setGoogleConnectMessage({ type: 'error', text: 'This Google account is already connected to another user.' });
-        }
-      } else {
-        setGoogleConnectMessage({ type: 'error', text: 'Failed to connect Google account. Please try again.' });
-      }
-    }
-  };
-
-  const handleSwitchGoogleAccount = async () => {
-    if (!googleErrorCredential) return;
-    try {
-      await signInWithCredential(auth, googleErrorCredential);
-      setShowGoogleErrorModal(false);
-      setGoogleErrorCredential(null);
-    } catch (error) {
-      console.error('Error switching to Google account:', error);
-      setGoogleConnectMessage({ type: 'error', text: 'Failed to switch accounts.' });
-      setShowGoogleErrorModal(false);
-    }
-  };
-
-  const isGoogleConnected = user?.providerData?.some((provider: any) => provider.providerId === 'google.com');
 
   return (
     <div className={`flex-1 overflow-y-auto p-4 ${isDark ? 'text-slate-200' : 'text-slate-800'}`}>
@@ -286,7 +220,6 @@ export function Profile({ isDark, user, userData, language }: ProfileProps) {
                 Edit
               </button>
             </h2>
-            <p className={`text-sm ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>{user?.email || 'Anonymous'}</p>
             {userData?.dob && (
               <p className={`text-xs mt-1 ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>DOB: {userData.dob}</p>
             )}
@@ -363,57 +296,6 @@ export function Profile({ isDark, user, userData, language }: ProfileProps) {
           </div>
           <span className={`text-sm ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>{t(language, 'profile.version')}</span>
         </div>
-
-        {/* Connect Google Account */}
-        <div className="mt-4">
-          {googleConnectMessage && (
-            <div className={`p-3 mb-3 rounded-lg text-sm flex items-center gap-2 ${
-              googleConnectMessage.type === 'error' 
-                ? (isDark ? 'bg-red-500/10 text-red-400' : 'bg-red-50 text-red-600') 
-                : (isDark ? 'bg-green-500/10 text-green-400' : 'bg-green-50 text-green-600')
-            }`}>
-              {googleConnectMessage.type === 'error' ? <AlertTriangle className="w-4 h-4" /> : <Check className="w-4 h-4" />}
-              {googleConnectMessage.text}
-            </div>
-          )}
-          <button 
-            onClick={isGoogleConnected ? undefined : handleConnectGoogle}
-            disabled={isGoogleConnected}
-            className={`w-full flex items-center gap-3 p-4 rounded-xl transition-colors ${isDark ? 'bg-slate-800/50' : 'bg-white'} shadow-sm ${!isGoogleConnected ? (isDark ? 'hover:bg-slate-800' : 'hover:bg-slate-50') : 'opacity-90 cursor-default'}`}
-          >
-            <div className={`p-2 rounded-lg ${
-              isGoogleConnected 
-                ? (isDark ? 'bg-green-500/20 text-green-400' : 'bg-green-100 text-green-600')
-                : (isDark ? 'bg-red-500/20 text-red-400' : 'bg-red-100 text-red-600')
-            }`}>
-              <Mail className="w-5 h-5" />
-            </div>
-            <div className="text-left flex-1">
-              <p className="font-medium">
-                {isGoogleConnected ? 'Google Account Connected' : 'Connect Google Account'}
-              </p>
-              <p className={`text-xs ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
-                {isGoogleConnected ? 'Your progress is synced to Gmail' : 'Link your Gmail to save progress'}
-              </p>
-            </div>
-            {!isGoogleConnected ? (
-              <ChevronRight className={`w-5 h-5 ${isDark ? 'text-slate-500' : 'text-slate-400'}`} />
-            ) : (
-              <Check className={`w-5 h-5 ${isDark ? 'text-green-500' : 'text-green-600'}`} />
-            )}
-          </button>
-        </div>
-
-        {/* Logout */}
-        <button 
-          onClick={handleLogout}
-          className={`w-full flex items-center gap-3 p-4 rounded-xl transition-colors mt-8 ${isDark ? 'bg-red-500/10 text-red-400 hover:bg-red-500/20' : 'bg-red-50 text-red-600 hover:bg-red-100'}`}
-        >
-          <div className="p-2 rounded-lg bg-transparent">
-            <LogOut className="w-5 h-5" />
-          </div>
-          <span className="font-medium">{t(language, 'profile.logout')}</span>
-        </button>
       </div>
 
       {/* Language Modal */}
@@ -477,42 +359,6 @@ export function Profile({ isDark, user, userData, language }: ProfileProps) {
                   {alarmSound === sound.id && <Check className="w-5 h-5" />}
                 </div>
               ))}
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Google Error Modal */}
-      {showGoogleErrorModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm animate-in fade-in duration-200 p-4">
-          <div className={`w-full max-w-sm overflow-hidden flex flex-col rounded-2xl shadow-2xl animate-in zoom-in-95 duration-300 ${isDark ? 'bg-slate-900 border border-slate-800' : 'bg-white'}`}>
-            <div className={`p-6 border-b flex flex-col items-center text-center ${isDark ? 'border-slate-800' : 'border-slate-100'}`}>
-              <div className={`p-3 rounded-full mb-4 ${isDark ? 'bg-red-500/20 text-red-400' : 'bg-red-100 text-red-600'}`}>
-                <AlertTriangle className="w-8 h-8" />
-              </div>
-              <h3 className="font-bold text-xl mb-2">Account Already Exists</h3>
-              <p className={`text-sm ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
-                This Google account is already registered to another user. Would you like to log in to that account instead? 
-                <br/><br/>
-                <span className="font-semibold text-red-500">Warning: Your current guest data will be lost.</span>
-              </p>
-            </div>
-            <div className="p-4 flex gap-3">
-              <button
-                onClick={() => {
-                  setShowGoogleErrorModal(false);
-                  setGoogleErrorCredential(null);
-                }}
-                className={`flex-1 py-3 rounded-xl font-medium transition-colors ${isDark ? 'bg-slate-800 hover:bg-slate-700 text-white' : 'bg-slate-100 hover:bg-slate-200 text-slate-800'}`}
-              >
-                Cancel
-              </button>
-              <button
-                onClick={handleSwitchGoogleAccount}
-                className="flex-1 py-3 rounded-xl font-medium bg-blue-600 hover:bg-blue-700 text-white transition-colors"
-              >
-                Yes, Log In
-              </button>
             </div>
           </div>
         </div>

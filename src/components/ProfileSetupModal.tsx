@@ -58,16 +58,19 @@ export function ProfileSetupModal({ user, userData, onComplete }: ProfileSetupMo
         updates.photoURL = profileImage;
       }
 
-      await setDoc(userRef, updates, { merge: true });
+      setDoc(userRef, updates, { merge: true }).catch(err => {
+        console.error('Failed to save user profile', err);
+      });
       
       if (profileImage) {
         const settingsRef = doc(db, `users/${user.uid}/settings/profile`);
-        await setDoc(settingsRef, { photoUrl: profileImage }, { merge: true });
+        setDoc(settingsRef, { photoUrl: profileImage }, { merge: true }).catch(err => {
+          console.error('Failed to save profile settings', err);
+        });
       }
 
       onComplete();
     } catch (err: any) {
-      handleFirestoreError(err, OperationType.UPDATE, `users/${user.uid}`);
       setError(err.message || 'Failed to save profile details');
     } finally {
       setLoading(false);

@@ -6,13 +6,13 @@ import { Reminders } from './components/Reminders';
 import { Profile } from './components/Profile';
 import { t } from './translations';
 import { subDays, format, addMonths, subMonths, startOfMonth, endOfMonth, eachDayOfInterval } from 'date-fns';
-import { Layers, ChevronLeft, ChevronRight, Trophy, Sun, Moon, BellRing, Home, BarChart2, Bell, LogOut, User } from 'lucide-react';
+import { Layers, ChevronLeft, ChevronRight, Trophy, Sun, Moon, BellRing, Home, BarChart2, Bell, User } from 'lucide-react';
 import { LocalNotifications } from '@capacitor/local-notifications';
-import { Login } from './components/Login';
 import { ProfileSetupModal } from './components/ProfileSetupModal';
 import { auth, db } from './firebase';
+import { signInAnonymously } from 'firebase/auth';
 import { ALARM_SOUNDS } from './constants';
-import { collection, doc, onSnapshot, setDoc, deleteDoc, query, getDocs } from 'firebase/firestore';
+import { collection, doc, onSnapshot, setDoc, deleteDoc } from 'firebase/firestore';
 import { handleFirestoreError, OperationType } from './utils/firebaseUtils';
 import { playAlarmSound } from './utils/audio';
 import confetti from 'canvas-confetti';
@@ -57,9 +57,18 @@ export default function App() {
   const [authLoading, setAuthLoading] = useState(true);
 
   useEffect(() => {
-    const unsubscribe = auth.onAuthStateChanged((u) => {
-      setUser(u);
-      setAuthLoading(false);
+    const unsubscribe = auth.onAuthStateChanged(async (u) => {
+      if (u) {
+        setUser(u);
+        setAuthLoading(false);
+      } else {
+        try {
+          await signInAnonymously(auth);
+        } catch (error) {
+          console.error("Anonymous auth failed", error);
+          setAuthLoading(false);
+        }
+      }
     });
     return unsubscribe;
   }, []);
@@ -163,39 +172,24 @@ export default function App() {
     document.body.style.backgroundColor = isDark ? '#0B1120' : '#f8fafc';
   }, [isDark]);
 
-  useEffect(() => {
-    localStorage.setItem('habit_tasks', JSON.stringify(tasks));
-  }, [tasks]);
-
-  useEffect(() => {
-    localStorage.setItem('habit_completions', JSON.stringify(completions));
-  }, [completions]);
-
-  useEffect(() => {
-    localStorage.setItem('habit_reminders', JSON.stringify(reminders));
-  }, [reminders]);
-
   // Firestore write helpers
   const saveTaskToFirestore = async (task: Task) => {
     if (!user) return;
     try {
-      await setDoc(doc(db, `users/${user.uid}/tasks/${task.id}`), { ...task, uid: user.uid });
+      setDoc(doc(db, `users/${user.uid}/tasks/${task.id}`), { ...task, uid: user.uid }).catch(e => console.error(e));
     } catch (e) {
       console.error("Failed to save task", e);
     }
   };
 
-  const deleteTaskFromFirestore = async (taskId: string) => {
+  const deleteTaskFromFirestore = async (taskId: string, taskCompletions: Record<string, boolean> = {}) => {
     if (!user) return;
     try {
-      await deleteDoc(doc(db, `users/${user.uid}/tasks/${taskId}`));
+      deleteDoc(doc(db, `users/${user.uid}/tasks/${taskId}`)).catch(e => console.error(e));
       // Also delete related completions
-      const completionsQuery = query(collection(db, `users/${user.uid}/completions`));
-      const snapshot = await getDocs(completionsQuery);
-      snapshot.forEach(async (docSnapshot) => {
-        if (docSnapshot.data().taskId === taskId) {
-          await deleteDoc(docSnapshot.ref);
-        }
+      Object.keys(taskCompletions).forEach(dateStr => {
+        const completionId = `${taskId}_${dateStr}`;
+        deleteDoc(doc(db, `users/${user.uid}/completions/${completionId}`)).catch(e => console.error(e));
       });
     } catch (e) {
       console.error("Failed to delete task", e);
@@ -206,13 +200,13 @@ export default function App() {
     if (!user) return;
     const completionId = `${taskId}_${dateStr}`;
     try {
-      await setDoc(doc(db, `users/${user.uid}/completions/${completionId}`), {
+      setDoc(doc(db, `users/${user.uid}/completions/${completionId}`), {
         id: completionId,
         uid: user.uid,
         taskId,
         date: dateStr,
         completed
-      });
+      }).catch(e => console.error(e));
     } catch (e) {
       console.error("Failed to save completion", e);
     }
@@ -221,7 +215,7 @@ export default function App() {
   const saveReminderToFirestore = async (reminder: Reminder) => {
     if (!user) return;
     try {
-      await setDoc(doc(db, `users/${user.uid}/reminders/${reminder.id}`), { ...reminder, uid: user.uid });
+      setDoc(doc(db, `users/${user.uid}/reminders/${reminder.id}`), { ...reminder, uid: user.uid }).catch(e => console.error(e));
     } catch (e) {
       console.error("Failed to save reminder", e);
     }
@@ -230,7 +224,7 @@ export default function App() {
   const deleteReminderFromFirestore = async (reminderId: string) => {
     if (!user) return;
     try {
-      await deleteDoc(doc(db, `users/${user.uid}/reminders/${reminderId}`));
+      deleteDoc(doc(db, `users/${user.uid}/reminders/${reminderId}`)).catch(e => console.error(e));
     } catch (e) {
       console.error("Failed to delete reminder", e);
     }
@@ -626,10 +620,11 @@ export default function App() {
     setTasks(prev => prev.filter(t => t.id !== id));
     setCompletions(prev => {
       const newCompletions = { ...prev };
+      const taskCompletions = newCompletions[id] || {};
       delete newCompletions[id];
+      deleteTaskFromFirestore(id, taskCompletions);
       return newCompletions;
     });
-    deleteTaskFromFirestore(id);
   };
 
   const handlePrevMonth = () => setCurrentMonth(prev => subMonths(prev, 1));
@@ -738,10 +733,6 @@ export default function App() {
         <div className="w-8 h-8 border-4 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
       </div>
     );
-  }
-
-  if (!user) {
-    return <Login />;
   }
 
   return (

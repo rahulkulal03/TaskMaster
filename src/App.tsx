@@ -9,11 +9,7 @@ import { subDays, format, addMonths, subMonths, startOfMonth, endOfMonth, eachDa
 import { Layers, ChevronLeft, ChevronRight, Trophy, Sun, Moon, BellRing, Home, BarChart2, Bell, User } from 'lucide-react';
 import { LocalNotifications } from '@capacitor/local-notifications';
 import { ProfileSetupModal } from './components/ProfileSetupModal';
-import { auth, db } from './firebase';
-import { signInAnonymously } from 'firebase/auth';
 import { ALARM_SOUNDS } from './constants';
-import { collection, doc, onSnapshot, setDoc, deleteDoc } from 'firebase/firestore';
-import { handleFirestoreError, OperationType } from './utils/firebaseUtils';
 import { playAlarmSound } from './utils/audio';
 import confetti from 'canvas-confetti';
 
@@ -53,26 +49,6 @@ const playCelebrationSound = () => {
 };
 
 export default function App() {
-  const [user, setUser] = useState(auth.currentUser);
-  const [authLoading, setAuthLoading] = useState(true);
-
-  useEffect(() => {
-    const unsubscribe = auth.onAuthStateChanged(async (u) => {
-      if (u) {
-        setUser(u);
-        setAuthLoading(false);
-      } else {
-        try {
-          await signInAnonymously(auth);
-        } catch (error) {
-          console.error("Anonymous auth failed", error);
-          setAuthLoading(false);
-        }
-      }
-    });
-    return unsubscribe;
-  }, []);
-
   const [currentMonth, setCurrentMonth] = useState(new Date());
   const [showCelebration, setShowCelebration] = useState(false);
   const [hasCelebratedToday, setHasCelebratedToday] = useState(false);
@@ -94,140 +70,102 @@ export default function App() {
   const activeAudioRef = React.useRef<{ stop: () => void } | null>(null);
   const reminderTimeouts = React.useRef<{ [key: string]: NodeJS.Timeout }>({});
 
-  // Load data from Firestore
+  // Load data from localStorage
   useEffect(() => {
-    if (!user) {
-      // Clear state when logged out
-      setTasks([]);
-      setCompletions({});
-      setReminders([]);
-      setUserData(null);
-      setShowProfileSetup(false);
-      return;
-    }
+    const savedTasks = localStorage.getItem('habit_tasks');
+    if (savedTasks) setTasks(JSON.parse(savedTasks));
 
-    const userId = user.uid;
+    const savedCompletions = localStorage.getItem('habit_completions');
+    if (savedCompletions) setCompletions(JSON.parse(savedCompletions));
 
-    const userUnsub = onSnapshot(doc(db, `users/${userId}`), (docSnap) => {
-      if (docSnap.exists()) {
-        const data = docSnap.data();
-        setUserData(data);
-        
-        // Show profile setup if dob is missing, or if it's a guest/google login without a name
-        if (!data.dob || (!data.displayName && data.isAnonymous)) {
-          setShowProfileSetup(true);
-        } else {
-          setShowProfileSetup(false);
-        }
-      } else {
-        // User document doesn't exist, force profile setup to create it
+    const savedReminders = localStorage.getItem('habit_reminders');
+    if (savedReminders) setReminders(JSON.parse(savedReminders));
+
+    const savedProfile = localStorage.getItem('habit_profile');
+    if (savedProfile) {
+      const profile = JSON.parse(savedProfile);
+      setUserData(profile);
+      if (profile.alarmSound) setAlarmSoundId(profile.alarmSound);
+      if (profile.language) setLanguage(profile.language);
+      
+      if (!profile.dob || !profile.displayName) {
         setShowProfileSetup(true);
       }
-    }, (error) => handleFirestoreError(error, OperationType.GET, `users/${userId}`));
+    } else {
+      setShowProfileSetup(true);
+    }
+  }, []);
 
-    const tasksUnsub = onSnapshot(collection(db, `users/${userId}/tasks`), (snapshot) => {
-      const newTasks: Task[] = [];
-      snapshot.forEach(doc => newTasks.push(doc.data() as Task));
-      setTasks(newTasks);
-    }, (error) => handleFirestoreError(error, OperationType.GET, `users/${userId}/tasks`));
-
-    const completionsUnsub = onSnapshot(collection(db, `users/${userId}/completions`), (snapshot) => {
-      const newCompletions: Completions = {};
-      snapshot.forEach(doc => {
-        const data = doc.data();
-        if (!newCompletions[data.taskId]) {
-          newCompletions[data.taskId] = {};
-        }
-        newCompletions[data.taskId][data.date] = data.completed;
-      });
-      setCompletions(newCompletions);
-    }, (error) => handleFirestoreError(error, OperationType.GET, `users/${userId}/completions`));
-
-    const remindersUnsub = onSnapshot(collection(db, `users/${userId}/reminders`), (snapshot) => {
-      const newReminders: Reminder[] = [];
-      snapshot.forEach(doc => newReminders.push(doc.data() as Reminder));
-      setReminders(newReminders);
-    }, (error) => handleFirestoreError(error, OperationType.GET, `users/${userId}/reminders`));
-
-    const profileUnsub = onSnapshot(doc(db, `users/${userId}/settings/profile`), (docSnap) => {
-      if (docSnap.exists()) {
-        const data = docSnap.data();
-        if (data.alarmSound) setAlarmSoundId(data.alarmSound);
-        if (data.language) setLanguage(data.language);
-      }
-    }, (error) => handleFirestoreError(error, OperationType.GET, `users/${userId}/settings/profile`));
-
-    return () => {
-      userUnsub();
-      tasksUnsub();
-      completionsUnsub();
-      remindersUnsub();
-      profileUnsub();
-    };
-  }, [user]);
-
-  // Sync to local storage as backup
+  // Sync to local storage
   useEffect(() => {
     localStorage.setItem('habit_theme', isDark ? 'dark' : 'light');
     document.body.style.backgroundColor = isDark ? '#0B1120' : '#f8fafc';
   }, [isDark]);
 
-  // Firestore write helpers
-  const saveTaskToFirestore = async (task: Task) => {
-    if (!user) return;
-    try {
-      setDoc(doc(db, `users/${user.uid}/tasks/${task.id}`), { ...task, uid: user.uid }).catch(e => console.error(e));
-    } catch (e) {
-      console.error("Failed to save task", e);
+  useEffect(() => {
+    localStorage.setItem('habit_tasks', JSON.stringify(tasks));
+  }, [tasks]);
+
+  useEffect(() => {
+    localStorage.setItem('habit_completions', JSON.stringify(completions));
+  }, [completions]);
+
+  useEffect(() => {
+    localStorage.setItem('habit_reminders', JSON.stringify(reminders));
+  }, [reminders]);
+
+  useEffect(() => {
+    if (userData) {
+      localStorage.setItem('habit_profile', JSON.stringify({
+        ...userData,
+        alarmSound: alarmSoundId,
+        language: language
+      }));
     }
+  }, [userData, alarmSoundId, language]);
+
+  // Local storage write helpers
+  const saveTaskToLocal = (task: Task) => {
+    setTasks(prev => {
+      const exists = prev.find(t => t.id === task.id);
+      if (exists) {
+        return prev.map(t => t.id === task.id ? task : t);
+      }
+      return [...prev, task];
+    });
   };
 
-  const deleteTaskFromFirestore = async (taskId: string, taskCompletions: Record<string, boolean> = {}) => {
-    if (!user) return;
-    try {
-      deleteDoc(doc(db, `users/${user.uid}/tasks/${taskId}`)).catch(e => console.error(e));
-      // Also delete related completions
-      Object.keys(taskCompletions).forEach(dateStr => {
-        const completionId = `${taskId}_${dateStr}`;
-        deleteDoc(doc(db, `users/${user.uid}/completions/${completionId}`)).catch(e => console.error(e));
-      });
-    } catch (e) {
-      console.error("Failed to delete task", e);
-    }
+  const deleteTaskFromLocal = (taskId: string, taskCompletions: Record<string, boolean> = {}) => {
+    setTasks(prev => prev.filter(t => t.id !== taskId));
+    setCompletions(prev => {
+      const newCompletions = { ...prev };
+      delete newCompletions[taskId];
+      return newCompletions;
+    });
   };
 
-  const saveCompletionToFirestore = async (taskId: string, dateStr: string, completed: boolean) => {
-    if (!user) return;
-    const completionId = `${taskId}_${dateStr}`;
-    try {
-      setDoc(doc(db, `users/${user.uid}/completions/${completionId}`), {
-        id: completionId,
-        uid: user.uid,
-        taskId,
-        date: dateStr,
-        completed
-      }).catch(e => console.error(e));
-    } catch (e) {
-      console.error("Failed to save completion", e);
-    }
+  const saveCompletionToLocal = (taskId: string, dateStr: string, completed: boolean) => {
+    setCompletions(prev => ({
+      ...prev,
+      [taskId]: {
+        ...(prev[taskId] || {}),
+        [dateStr]: completed
+      }
+    }));
   };
 
-  const saveReminderToFirestore = async (reminder: Reminder) => {
-    if (!user) return;
-    try {
-      setDoc(doc(db, `users/${user.uid}/reminders/${reminder.id}`), { ...reminder, uid: user.uid }).catch(e => console.error(e));
-    } catch (e) {
-      console.error("Failed to save reminder", e);
-    }
+  const saveReminderToLocal = (reminder: Reminder) => {
+    setReminders(prev => {
+      const exists = prev.find(r => r.id === reminder.id);
+      if (exists) {
+        return prev.map(r => r.id === reminder.id ? reminder : r);
+      }
+      return [...prev, reminder];
+    });
   };
 
-  const deleteReminderFromFirestore = async (reminderId: string) => {
-    if (!user) return;
-    try {
-      deleteDoc(doc(db, `users/${user.uid}/reminders/${reminderId}`)).catch(e => console.error(e));
-    } catch (e) {
-      console.error("Failed to delete reminder", e);
-    }
+  const deleteReminderFromLocal = (reminderId: string) => {
+    setReminders(prev => prev.filter(r => r.id !== reminderId));
   };
 
   useEffect(() => {
@@ -266,11 +204,11 @@ export default function App() {
         reminderTimeouts.current[id] = setTimeout(() => {
           setReminders(currentReminders => currentReminders.filter(r => r.id !== id));
           delete reminderTimeouts.current[id];
-          deleteReminderFromFirestore(id);
+          deleteReminderFromLocal(id);
         }, 5000);
         
         const updated = { ...reminder, completed: true };
-        saveReminderToFirestore(updated);
+        saveReminderToLocal(updated);
         return prev.map(r => r.id === id ? updated : r);
       });
     }
@@ -344,7 +282,7 @@ export default function App() {
               if (actionId === 'dismiss') {
                 // Mark as completed
                 const updated = { ...reminder, completed: true };
-                saveReminderToFirestore(updated);
+                saveReminderToLocal(updated);
                 return prev.map(r => r.id === reminder.id ? updated : r);
               } else if (actionId === 'snooze') {
                 // Snooze for 10 minutes
@@ -359,7 +297,7 @@ export default function App() {
                   scheduleNotification(updatedReminder);
                 }, 100);
                 
-                saveReminderToFirestore(updatedReminder);
+                saveReminderToLocal(updatedReminder);
                 return prev.map(r => r.id === reminder.id ? updatedReminder : r);
               } else {
                 // Default tap, open app and show alarm modal
@@ -518,7 +456,7 @@ export default function App() {
               
               updated = true;
               const updatedReminder = { ...reminder, notified: true };
-              saveReminderToFirestore(updatedReminder);
+              saveReminderToLocal(updatedReminder);
               return updatedReminder;
             }
           }
@@ -535,7 +473,7 @@ export default function App() {
   const handleToggle = (taskId: string, dateStr: string) => {
     setCompletions(prev => {
       const isCompleted = !(prev[taskId]?.[dateStr]);
-      saveCompletionToFirestore(taskId, dateStr, isCompleted);
+      saveCompletionToLocal(taskId, dateStr, isCompleted);
       
       const newCompletions = {
         ...prev,
@@ -595,13 +533,13 @@ export default function App() {
     const newId = Date.now().toString() + Math.random().toString(36).substring(2);
     const newTask = { 
       id: newId, 
-      uid: user?.uid || 'local-user',
+      uid: 'local-user',
       title: 'New Task',
       createdAt: new Date().toISOString()
     };
     
     setTasks(prev => [...prev, newTask]);
-    saveTaskToFirestore(newTask);
+    saveTaskToLocal(newTask);
     return newId;
   };
 
@@ -610,7 +548,7 @@ export default function App() {
       const updated = prev.map(t => t.id === id ? { ...t, title } : t);
       const task = updated.find(t => t.id === id);
       if (task && title.trim().length > 0) {
-        saveTaskToFirestore(task);
+        saveTaskToLocal(task);
       }
       return updated;
     });
@@ -622,7 +560,7 @@ export default function App() {
       const newCompletions = { ...prev };
       const taskCompletions = newCompletions[id] || {};
       delete newCompletions[id];
-      deleteTaskFromFirestore(id, taskCompletions);
+      deleteTaskFromLocal(id, taskCompletions);
       return newCompletions;
     });
   };
@@ -634,7 +572,7 @@ export default function App() {
   const handleAddReminder = (text: string, date: string, time: string) => {
     const newReminder: Reminder = {
       id: Date.now().toString() + Math.random().toString(36).substring(2),
-      uid: user?.uid || 'local-user',
+      uid: 'local-user',
       text,
       date,
       time,
@@ -643,7 +581,7 @@ export default function App() {
     };
     setReminders(prev => [...prev, newReminder]);
     scheduleNotification(newReminder);
-    saveReminderToFirestore(newReminder);
+    saveReminderToLocal(newReminder);
   };
 
   const handleToggleReminder = (id: string) => {
@@ -659,7 +597,7 @@ export default function App() {
         reminderTimeouts.current[id] = setTimeout(() => {
           setReminders(currentReminders => currentReminders.filter(r => r.id !== id));
           delete reminderTimeouts.current[id];
-          deleteReminderFromFirestore(id);
+          deleteReminderFromLocal(id);
         }, 5000);
       } else {
         // Un-toggled, clear the timeout if it exists
@@ -672,7 +610,7 @@ export default function App() {
       }
 
       const updated = { ...reminder, completed: isNowCompleted };
-      saveReminderToFirestore(updated);
+      saveReminderToLocal(updated);
       return prev.map(r => r.id === id ? updated : r);
     });
   };
@@ -684,7 +622,7 @@ export default function App() {
     }
     cancelNotification(id);
     setReminders(prev => prev.filter(r => r.id !== id));
-    deleteReminderFromFirestore(id);
+    deleteReminderFromLocal(id);
   };
 
   const handleUpdateReminder = (id: string, text: string, date: string, time: string) => {
@@ -693,7 +631,7 @@ export default function App() {
         if (r.id === id) {
           const updatedReminder = { ...r, text, date, time, notified: false };
           scheduleNotification(updatedReminder);
-          saveReminderToFirestore(updatedReminder);
+          saveReminderToLocal(updatedReminder);
           return updatedReminder;
         }
         return r;
@@ -715,7 +653,7 @@ export default function App() {
         r.id === activeAlarm.id ? updatedReminder : r
       ));
       
-      saveReminderToFirestore(updatedReminder);
+      saveReminderToLocal(updatedReminder);
       scheduleNotification(updatedReminder);
     }
     dismissAlarm(false);
@@ -726,14 +664,6 @@ export default function App() {
     const end = endOfMonth(currentMonth);
     return eachDayOfInterval({ start, end });
   }, [currentMonth]);
-
-  if (authLoading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-slate-50">
-        <div className="w-8 h-8 border-4 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
-      </div>
-    );
-  }
 
   return (
     <div className={`h-[100dvh] overflow-hidden font-sans transition-colors duration-300 flex flex-col ${isDark ? 'bg-[#0B1120] text-slate-200' : 'bg-slate-50 text-slate-800'}`}>
@@ -838,7 +768,12 @@ export default function App() {
               />
             )}
             {activeTab === 'profile' && (
-              <Profile isDark={isDark} user={user} userData={userData} language={language} />
+              <Profile 
+                isDark={isDark} 
+                userData={userData} 
+                language={language} 
+                onUpdateProfile={(updates) => setUserData((prev: any) => ({ ...prev, ...updates }))}
+              />
             )}
           </div>
           
@@ -934,11 +869,13 @@ export default function App() {
         </div>
       )}
       {/* Profile Setup Modal */}
-      {showProfileSetup && user && (
+      {showProfileSetup && (
         <ProfileSetupModal 
-          user={user} 
           userData={userData} 
-          onComplete={() => setShowProfileSetup(false)} 
+          onComplete={(updates) => {
+            setUserData((prev: any) => ({ ...prev, ...updates }));
+            setShowProfileSetup(false);
+          }} 
         />
       )}
     </div>

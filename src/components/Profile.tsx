@@ -1,8 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Camera, Globe, Fingerprint, Bell, Info, ChevronRight, Check, Play, Square } from 'lucide-react';
-import { auth, db } from '../firebase';
-import { doc, setDoc, onSnapshot } from 'firebase/firestore';
-import { handleFirestoreError, OperationType } from '../utils/firebaseUtils';
 import { playAlarmSound } from '../utils/audio';
 import { ALARM_SOUNDS, LANGUAGES } from '../constants';
 
@@ -10,15 +7,15 @@ import { t } from '../translations';
 
 interface ProfileProps {
   isDark: boolean;
-  user: any;
   userData?: any;
   language: string;
+  onUpdateProfile: (updates: any) => void;
 }
 
-export function Profile({ isDark, user, userData, language }: ProfileProps) {
-  const [profileImage, setProfileImage] = useState<string | null>(user?.photoURL || null);
-  const [biometricEnabled, setBiometricEnabled] = useState(false);
-  const [alarmSound, setAlarmSound] = useState('default');
+export function Profile({ isDark, userData, language, onUpdateProfile }: ProfileProps) {
+  const [profileImage, setProfileImage] = useState<string | null>(userData?.photoURL || null);
+  const [biometricEnabled, setBiometricEnabled] = useState(userData?.biometricEnabled || false);
+  const [alarmSound, setAlarmSound] = useState(userData?.alarmSound || 'default');
   const [showLanguageModal, setShowLanguageModal] = useState(false);
   const [showAlarmModal, setShowAlarmModal] = useState(false);
   const [playingPreview, setPlayingPreview] = useState<string | null>(null);
@@ -30,10 +27,13 @@ export function Profile({ isDark, user, userData, language }: ProfileProps) {
 
   useEffect(() => {
     if (userData) {
-      setEditName(userData.displayName || user?.displayName || '');
+      setEditName(userData.displayName || '');
       setEditDob(userData.dob || '');
+      if (userData.photoURL) setProfileImage(userData.photoURL);
+      if (userData.biometricEnabled !== undefined) setBiometricEnabled(userData.biometricEnabled);
+      if (userData.alarmSound) setAlarmSound(userData.alarmSound);
     }
-  }, [userData, user]);
+  }, [userData]);
 
   useEffect(() => {
     return () => {
@@ -43,32 +43,8 @@ export function Profile({ isDark, user, userData, language }: ProfileProps) {
     };
   }, []);
 
-  useEffect(() => {
-    if (!user?.uid) return;
-    const docRef = doc(db, `users/${user.uid}/settings/profile`);
-    const unsubscribe = onSnapshot(docRef, (docSnap) => {
-      if (docSnap.exists()) {
-        const data = docSnap.data();
-        if (data.photoUrl) setProfileImage(data.photoUrl);
-        if (data.biometricEnabled !== undefined) setBiometricEnabled(data.biometricEnabled);
-        if (data.alarmSound) setAlarmSound(data.alarmSound);
-      }
-    }, (error) => {
-      handleFirestoreError(error, OperationType.GET, `users/${user.uid}/settings/profile`);
-    });
-    return () => unsubscribe();
-  }, [user]);
-
-  const saveProfile = async (updates: any) => {
-    if (!user?.uid) return;
-    try {
-      const docRef = doc(db, `users/${user.uid}/settings/profile`);
-      setDoc(docRef, updates, { merge: true }).catch(error => {
-        console.error('Failed to save profile', error);
-      });
-    } catch (error) {
-      handleFirestoreError(error, OperationType.UPDATE, `users/${user.uid}/settings/profile`);
-    }
+  const saveProfile = (updates: any) => {
+    onUpdateProfile(updates);
   };
 
   const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -78,7 +54,7 @@ export function Profile({ isDark, user, userData, language }: ProfileProps) {
       reader.onloadend = () => {
         const base64String = reader.result as string;
         setProfileImage(base64String);
-        saveProfile({ photoUrl: base64String });
+        saveProfile({ photoURL: base64String });
       };
       reader.readAsDataURL(file);
     }
@@ -137,18 +113,14 @@ export function Profile({ isDark, user, userData, language }: ProfileProps) {
     }
   };
 
-  const handleSaveProfileDetails = async () => {
-    if (!user?.uid) return;
+  const handleSaveProfileDetails = () => {
     if (!editName.trim() || !editDob) {
       // Don't save if name or dob is empty
       return;
     }
-    const userRef = doc(db, 'users', user.uid);
-    setDoc(userRef, {
+    saveProfile({
       displayName: editName.trim(),
       dob: editDob
-    }, { merge: true }).catch(error => {
-      console.error('Failed to save profile details', error);
     });
     setIsEditingProfile(false);
   };
@@ -163,7 +135,7 @@ export function Profile({ isDark, user, userData, language }: ProfileProps) {
               <img src={profileImage} alt="Profile" className="w-full h-full object-cover" />
             ) : (
               <span className="text-3xl font-bold text-slate-400">
-                {userData?.displayName?.charAt(0) || user?.displayName?.charAt(0) || user?.email?.charAt(0) || '?'}
+                {userData?.displayName?.charAt(0) || '?'}
               </span>
             )}
           </div>
@@ -215,7 +187,7 @@ export function Profile({ isDark, user, userData, language }: ProfileProps) {
         ) : (
           <>
             <h2 className="text-xl font-bold flex items-center gap-2">
-              {userData?.displayName || user?.displayName || 'Guest User'}
+              {userData?.displayName || 'Guest User'}
               <button onClick={() => setIsEditingProfile(true)} className="text-blue-500 hover:text-blue-600 text-sm font-normal">
                 Edit
               </button>

@@ -1,20 +1,15 @@
 export const ALARM_SOUNDS = [
-  { id: 'default', name: 'Default Chime', url: 'https://actions.google.com/sounds/v1/alarms/alarm_clock.ogg' },
-  { id: 'bells', name: 'Morning Bells', url: 'https://actions.google.com/sounds/v1/alarms/bugle_tune.ogg' },
-  { id: 'birds', name: 'Birdsong', url: 'https://actions.google.com/sounds/v1/animals/birds_in_forest.ogg' },
-  { id: 'custom_music', name: 'Custom Music', url: 'https://videotourl.com/audio/1774685707517-cae9977d-9473-4295-a744-8a2d0a07ebfa.mp3' },
-  { id: 'custom_music_2', name: 'Custom Music 2', url: 'https://videotourl.com/audio/1774685945773-fb63ba5b-0eff-4c63-9d30-35ac7e7017cc.wav' },
-  { id: 'custom_music_3', name: 'Custom Music 3', url: 'https://videotourl.com/audio/1774686335510-9a9802e7-86f7-4427-be04-e9d4205a20f0.mp3' },
-  { id: 'custom_music_4', name: 'Custom Music 4', url: 'https://videotourl.com/audio/1774686351792-c35cb520-f701-470d-b4e0-0a0721672ea0.mp3' },
-  { id: 'custom_music_5', name: 'Custom Music 5', url: 'https://videotourl.com/audio/1774686368290-bebefb6f-509f-4135-8604-9f219b3331d4.mp3' },
-  { id: 'digital', name: 'Digital Beep', url: 'https://actions.google.com/sounds/v1/alarms/digital_watch_alarm_long.ogg' },
-  { id: 'gentle', name: 'Gentle Wake', url: 'https://actions.google.com/sounds/v1/alarms/beep_short.ogg' },
+  { id: 'default', name: 'Default Chime', url: '' },
+  { id: 'bells', name: 'Morning Bells', url: '' },
+  { id: 'birds', name: 'Birdsong', url: '' },
+  { id: 'digital', name: 'Digital Beep', url: '' },
+  { id: 'gentle', name: 'Gentle Wake', url: '' },
   { id: 'high_sound', name: 'High Sound (Loud)', url: '' },
-  { id: 'marimba', name: 'Marimba', url: 'https://actions.google.com/sounds/v1/alarms/dosimeter_alarm.ogg' },
-  { id: 'ocean', name: 'Ocean Waves', url: 'https://actions.google.com/sounds/v1/water/waves_crashing_on_rock_beach.ogg' },
-  { id: 'piano', name: 'Piano Melody', url: 'https://actions.google.com/sounds/v1/alarms/phone_alerts_and_rings.ogg' },
-  { id: 'rooster', name: 'Rooster Crow', url: 'https://actions.google.com/sounds/v1/animals/rooster.ogg' },
-  { id: 'synth', name: 'Synth Pop', url: 'https://actions.google.com/sounds/v1/alarms/space_siren.ogg' }
+  { id: 'marimba', name: 'Marimba', url: '' },
+  { id: 'ocean', name: 'Ocean Waves', url: '' },
+  { id: 'piano', name: 'Piano Melody', url: '' },
+  { id: 'rooster', name: 'Rooster Crow', url: '' },
+  { id: 'synth', name: 'Synth Pop', url: '' }
 ];
 
 export const LANGUAGES = [

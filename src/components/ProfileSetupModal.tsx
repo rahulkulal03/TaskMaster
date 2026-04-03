@@ -1,20 +1,15 @@
 import React, { useState, useRef } from 'react';
-import { db } from '../firebase';
-import { doc, setDoc } from 'firebase/firestore';
-import { handleFirestoreError, OperationType } from '../utils/firebaseUtils';
-import { User } from 'firebase/auth';
 import { Camera } from 'lucide-react';
 
 interface ProfileSetupModalProps {
-  user: User;
   userData: any;
-  onComplete: () => void;
+  onComplete: (data: any) => void;
 }
 
-export function ProfileSetupModal({ user, userData, onComplete }: ProfileSetupModalProps) {
-  const [name, setName] = useState(userData?.displayName || user.displayName || '');
+export function ProfileSetupModal({ userData, onComplete }: ProfileSetupModalProps) {
+  const [name, setName] = useState(userData?.displayName || '');
   const [dob, setDob] = useState(userData?.dob || '');
-  const [profileImage, setProfileImage] = useState<string | null>(userData?.photoURL || user.photoURL || null);
+  const [profileImage, setProfileImage] = useState<string | null>(userData?.photoURL || null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -45,10 +40,7 @@ export function ProfileSetupModal({ user, userData, onComplete }: ProfileSetupMo
     setError('');
 
     try {
-      const userRef = doc(db, 'users', user.uid);
       const updates: any = {
-        uid: user.uid,
-        isAnonymous: user.isAnonymous,
         displayName: name.trim(),
         dob: dob,
         lastLogin: new Date().toISOString()
@@ -58,18 +50,7 @@ export function ProfileSetupModal({ user, userData, onComplete }: ProfileSetupMo
         updates.photoURL = profileImage;
       }
 
-      setDoc(userRef, updates, { merge: true }).catch(err => {
-        console.error('Failed to save user profile', err);
-      });
-      
-      if (profileImage) {
-        const settingsRef = doc(db, `users/${user.uid}/settings/profile`);
-        setDoc(settingsRef, { photoUrl: profileImage }, { merge: true }).catch(err => {
-          console.error('Failed to save profile settings', err);
-        });
-      }
-
-      onComplete();
+      onComplete(updates);
     } catch (err: any) {
       setError(err.message || 'Failed to save profile details');
     } finally {
@@ -98,7 +79,7 @@ export function ProfileSetupModal({ user, userData, onComplete }: ProfileSetupMo
                 <img src={profileImage} alt="Profile" className="w-full h-full object-cover" />
               ) : (
                 <span className="text-3xl font-bold text-slate-400 dark:text-slate-500">
-                  {name.charAt(0) || user.email?.charAt(0) || '?'}
+                  {name.charAt(0) || '?'}
                 </span>
               )}
             </div>

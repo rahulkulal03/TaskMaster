@@ -77,7 +77,7 @@ export function DateTimePickerModal({ isOpen, onClose, onConfirm, initialDateTim
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 animate-in fade-in duration-200">
+    <div className="fixed inset-0 z-[70] flex items-center justify-center p-4 bg-black/50 animate-in fade-in duration-200">
       <div className={`w-full max-w-sm rounded-2xl p-5 ${isDark ? 'bg-slate-800' : 'bg-white'} shadow-xl flex flex-col max-h-[90vh]`}>
         <div className="flex items-center justify-between mb-4">
           <h3 className={`text-lg font-semibold ${isDark ? 'text-white' : 'text-slate-900'}`}>

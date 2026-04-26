@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Camera, Globe, Fingerprint, Bell, Info, ChevronRight, Check, Play, Square } from 'lucide-react';
+import { Camera, Globe, Bell, Info, ChevronRight, Check, Play, Square, Upload } from 'lucide-react';
 import { playAlarmSound } from '../utils/audio';
 import { ALARM_SOUNDS, LANGUAGES } from '../constants';
 
@@ -14,7 +14,6 @@ interface ProfileProps {
 
 export function Profile({ isDark, userData, language, onUpdateProfile }: ProfileProps) {
   const [profileImage, setProfileImage] = useState<string | null>(userData?.photoURL || null);
-  const [biometricEnabled, setBiometricEnabled] = useState(userData?.biometricEnabled || false);
   const [alarmSound, setAlarmSound] = useState(userData?.alarmSound || 'default');
   const [showLanguageModal, setShowLanguageModal] = useState(false);
   const [showAlarmModal, setShowAlarmModal] = useState(false);
@@ -23,6 +22,7 @@ export function Profile({ isDark, userData, language, onUpdateProfile }: Profile
   const [editName, setEditName] = useState('');
   const [editDob, setEditDob] = useState('');
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const ringtoneInputRef = useRef<HTMLInputElement>(null);
   const previewAudioRef = useRef<{ stop: () => void } | null>(null);
 
   useEffect(() => {
@@ -30,7 +30,6 @@ export function Profile({ isDark, userData, language, onUpdateProfile }: Profile
       setEditName(userData.displayName || '');
       setEditDob(userData.dob || '');
       if (userData.photoURL) setProfileImage(userData.photoURL);
-      if (userData.biometricEnabled !== undefined) setBiometricEnabled(userData.biometricEnabled);
       if (userData.alarmSound) setAlarmSound(userData.alarmSound);
     }
   }, [userData]);
@@ -60,10 +59,17 @@ export function Profile({ isDark, userData, language, onUpdateProfile }: Profile
     }
   };
 
-  const toggleBiometric = () => {
-    const newValue = !biometricEnabled;
-    setBiometricEnabled(newValue);
-    saveProfile({ biometricEnabled: newValue });
+  const handleRingtoneUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        const base64String = reader.result as string;
+        localStorage.setItem('custom_ringtone', base64String);
+        handleAlarmSelect('custom');
+      };
+      reader.readAsDataURL(file);
+    }
   };
 
   const handleLanguageSelect = (code: string) => {
@@ -160,7 +166,7 @@ export function Profile({ isDark, userData, language, onUpdateProfile }: Profile
               type="text"
               value={editName}
               onChange={(e) => setEditName(e.target.value)}
-              placeholder="Full Name"
+              placeholder={t(language, 'profile.full_name') || "Full Name"}
               className={`w-full px-3 py-2 rounded-lg border ${isDark ? 'bg-slate-800 border-slate-700 text-white' : 'bg-white border-slate-300 text-slate-900'} focus:ring-2 focus:ring-blue-500 outline-none`}
             />
             <input
@@ -174,26 +180,26 @@ export function Profile({ isDark, userData, language, onUpdateProfile }: Profile
                 onClick={() => setIsEditingProfile(false)}
                 className={`flex-1 py-2 rounded-lg font-medium ${isDark ? 'bg-slate-700 hover:bg-slate-600 text-white' : 'bg-slate-200 hover:bg-slate-300 text-slate-800'}`}
               >
-                Cancel
+                {t(language, 'profile.cancel') || 'Cancel'}
               </button>
               <button
                 onClick={handleSaveProfileDetails}
                 className="flex-1 py-2 rounded-lg font-medium bg-blue-600 hover:bg-blue-700 text-white"
               >
-                Save
+                {t(language, 'profile.save') || 'Save'}
               </button>
             </div>
           </div>
         ) : (
           <>
             <h2 className="text-xl font-bold flex items-center gap-2">
-              {userData?.displayName || 'Guest User'}
+              {userData?.displayName || t(language, 'profile.guest_user') || 'Guest User'}
               <button onClick={() => setIsEditingProfile(true)} className="text-blue-500 hover:text-blue-600 text-sm font-normal">
-                Edit
+                {t(language, 'profile.edit') || 'Edit'}
               </button>
             </h2>
             {userData?.dob && (
-              <p className={`text-xs mt-1 ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>DOB: {userData.dob}</p>
+              <p className={`text-xs mt-1 ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>{t(language, 'profile.dob') || 'DOB'}: {userData.dob}</p>
             )}
           </>
         )}
@@ -220,25 +226,6 @@ export function Profile({ isDark, userData, language, onUpdateProfile }: Profile
           <ChevronRight className={`w-5 h-5 ${isDark ? 'text-slate-500' : 'text-slate-400'}`} />
         </button>
 
-        {/* Biometric */}
-        <div className={`w-full flex items-center justify-between p-4 rounded-xl ${isDark ? 'bg-slate-800/50' : 'bg-white'} shadow-sm`}>
-          <div className="flex items-center gap-3">
-            <div className={`p-2 rounded-lg ${isDark ? 'bg-purple-500/20 text-purple-400' : 'bg-purple-100 text-purple-600'}`}>
-              <Fingerprint className="w-5 h-5" />
-            </div>
-            <div className="text-left">
-              <p className="font-medium">{t(language, 'profile.biometric')}</p>
-              <p className={`text-xs ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>{t(language, 'profile.biometric_desc')}</p>
-            </div>
-          </div>
-          <button 
-            onClick={toggleBiometric}
-            className={`w-12 h-6 rounded-full transition-colors relative ${biometricEnabled ? 'bg-blue-500' : (isDark ? 'bg-slate-700' : 'bg-slate-300')}`}
-          >
-            <div className={`absolute top-1 w-4 h-4 rounded-full bg-white transition-transform ${biometricEnabled ? 'translate-x-7' : 'translate-x-1'}`} />
-          </button>
-        </div>
-
         {/* Alarm Sound */}
         <button 
           onClick={() => setShowAlarmModal(true)}
@@ -251,7 +238,7 @@ export function Profile({ isDark, userData, language, onUpdateProfile }: Profile
             <div className="text-left">
               <p className="font-medium">{t(language, 'profile.alarm_sound')}</p>
               <p className={`text-xs ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
-                {ALARM_SOUNDS.find(s => s.id === alarmSound)?.name || 'Default Chime'}
+                {t(language, 'sound.' + alarmSound) !== ('sound.' + alarmSound) ? t(language, 'sound.' + alarmSound) : (ALARM_SOUNDS.find(s => s.id === alarmSound)?.name || 'Default Chime')}
               </p>
             </div>
           </div>
@@ -313,6 +300,13 @@ export function Profile({ isDark, userData, language, onUpdateProfile }: Profile
               </button>
             </div>
             <div className="overflow-y-auto p-2">
+              <input
+                type="file"
+                ref={ringtoneInputRef}
+                onChange={handleRingtoneUpload}
+                accept="audio/*"
+                className="hidden"
+              />
               {ALARM_SOUNDS.map(sound => (
                 <div
                   key={sound.id}
@@ -320,15 +314,30 @@ export function Profile({ isDark, userData, language, onUpdateProfile }: Profile
                   className={`w-full flex items-center justify-between p-3 rounded-xl transition-colors cursor-pointer ${alarmSound === sound.id ? (isDark ? 'bg-blue-500/20 text-blue-400' : 'bg-blue-50 text-blue-600') : (isDark ? 'hover:bg-slate-800' : 'hover:bg-slate-50')}`}
                 >
                   <div className="flex items-center gap-3">
-                    <button
-                      onClick={(e) => handlePlayPreview(e, sound.id)}
-                      className={`p-2 rounded-full transition-colors ${playingPreview === sound.id ? 'bg-blue-500 text-white' : (isDark ? 'bg-slate-700 text-slate-300 hover:bg-slate-600' : 'bg-slate-200 text-slate-600 hover:bg-slate-300')}`}
-                    >
-                      {playingPreview === sound.id ? <Square className="w-4 h-4" /> : <Play className="w-4 h-4 ml-0.5" />}
-                    </button>
-                    <span>{sound.name}</span>
+                    {sound.id !== 'custom' && (
+                      <button
+                        onClick={(e) => handlePlayPreview(e, sound.id)}
+                        className={`p-2 rounded-full transition-colors ${playingPreview === sound.id ? 'bg-blue-500 text-white' : (isDark ? 'bg-slate-700 text-slate-300 hover:bg-slate-600' : 'bg-slate-200 text-slate-600 hover:bg-slate-300')}`}
+                      >
+                        {playingPreview === sound.id ? <Square className="w-4 h-4" /> : <Play className="w-4 h-4 ml-0.5" />}
+                      </button>
+                    )}
+                    <span>{t(language, 'sound.' + sound.id) !== ('sound.' + sound.id) ? t(language, 'sound.' + sound.id) : sound.name}</span>
                   </div>
-                  {alarmSound === sound.id && <Check className="w-5 h-5" />}
+                  <div className="flex items-center gap-2">
+                    {sound.id === 'custom' && (
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          ringtoneInputRef.current?.click();
+                        }}
+                        className={`p-2 rounded-full transition-colors ${isDark ? 'bg-slate-700 hover:bg-slate-600 text-slate-200' : 'bg-slate-200 hover:bg-slate-300 text-slate-700'}`}
+                      >
+                        <Upload className="w-4 h-4" />
+                      </button>
+                    )}
+                    {alarmSound === sound.id && <Check className="w-5 h-5" />}
+                  </div>
                 </div>
               ))}
             </div>

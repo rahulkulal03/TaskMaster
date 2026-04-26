@@ -7,6 +7,7 @@ import { Profile } from './components/Profile';
 import { t } from './translations';
 import { subDays, format, addMonths, subMonths, startOfMonth, endOfMonth, eachDayOfInterval } from 'date-fns';
 import { Layers, ChevronLeft, ChevronRight, Trophy, Sun, Moon, BellRing, Home, BarChart2, Bell, User } from 'lucide-react';
+import { Capacitor } from '@capacitor/core';
 import { LocalNotifications } from '@capacitor/local-notifications';
 import { ProfileSetupModal } from './components/ProfileSetupModal';
 import { ALARM_SOUNDS } from './constants';
@@ -61,7 +62,8 @@ export default function App() {
   const [tasks, setTasks] = useState<Task[]>([]);
   const [completions, setCompletions] = useState<Completions>({});
   const [reminders, setReminders] = useState<Reminder[]>([]);
-  const [activeAlarm, setActiveAlarm] = useState<Reminder | null>(null);
+  const [activeAlarms, setActiveAlarms] = useState<Reminder[]>([]);
+  const activeAlarm = activeAlarms[0] || null;
   const [snoozeDuration, setSnoozeDuration] = useState<number>(10);
   const [alarmSoundId, setAlarmSoundId] = useState<string>('default');
   const [language, setLanguage] = useState<string>('en');
@@ -213,7 +215,13 @@ export default function App() {
       });
     }
     
-    setActiveAlarm(null);
+    setActiveAlarms(prev => {
+      const remaining = prev.slice(1);
+      if (remaining.length > 0) {
+        activeAudioRef.current = playAlarmSound(alarmSoundId, true);
+      }
+      return remaining;
+    });
   };
 
   useEffect(() => {
@@ -301,7 +309,7 @@ export default function App() {
                 return prev.map(r => r.id === reminder.id ? updatedReminder : r);
               } else {
                 // Default tap, open app and show alarm modal
-                setActiveAlarm(reminder);
+                setActiveAlarms(alarms => [...alarms, reminder]);
               }
             }
             return prev;
@@ -320,6 +328,7 @@ export default function App() {
   }, []);
 
   const cancelNotification = async (id: string) => {
+    if (!Capacitor.isNativePlatform()) return;
     try {
       const numericId = Math.abs(id.split('').reduce((a, b) => {
         a = ((a << 5) - a) + b.charCodeAt(0);
@@ -337,36 +346,37 @@ export default function App() {
     const reminderTime = new Date(`${reminder.date}T${reminder.time}`).getTime();
     if (reminderTime <= Date.now()) return;
 
-    try {
-      // Use Capacitor Local Notifications if available
-      const permStatus = await LocalNotifications.checkPermissions();
-      if (permStatus.display !== 'granted') {
-        const requestStatus = await LocalNotifications.requestPermissions();
-        if (requestStatus.display !== 'granted') return;
+    if (Capacitor.isNativePlatform()) {
+      try {
+        const permStatus = await LocalNotifications.checkPermissions();
+        if (permStatus.display !== 'granted') {
+          const requestStatus = await LocalNotifications.requestPermissions();
+          if (requestStatus.display !== 'granted') return;
+        }
+
+        const numericId = Math.abs(reminder.id.split('').reduce((a, b) => {
+          a = ((a << 5) - a) + b.charCodeAt(0);
+          return a & a;
+        }, 0));
+
+        await LocalNotifications.schedule({
+          notifications: [
+            {
+              title: 'TaskMaster Reminder',
+              body: reminder.text,
+              id: numericId,
+              schedule: { at: new Date(reminderTime), allowWhileIdle: true },
+              sound: 'beep.wav',
+              channelId: 'alarm_channel',
+              actionTypeId: 'ALARM_ACTIONS',
+              extra: null
+            }
+          ]
+        });
+      } catch (e) {
+        console.warn('Capacitor LocalNotifications failed:', e);
       }
-
-      // Generate a numeric ID from the string ID
-      const numericId = Math.abs(reminder.id.split('').reduce((a, b) => {
-        a = ((a << 5) - a) + b.charCodeAt(0);
-        return a & a;
-      }, 0));
-
-      await LocalNotifications.schedule({
-        notifications: [
-          {
-            title: 'TaskMaster Reminder',
-            body: reminder.text,
-            id: numericId,
-            schedule: { at: new Date(reminderTime), allowWhileIdle: true },
-            sound: 'beep.wav',
-            channelId: 'alarm_channel',
-            actionTypeId: 'ALARM_ACTIONS',
-            extra: null
-          }
-        ]
-      });
-    } catch (e) {
-      console.warn('Capacitor LocalNotifications failed, falling back to Web API:', e);
+    } else {
       // Fallback to Web API
       try {
         if (!('Notification' in window)) return;
@@ -380,26 +390,35 @@ export default function App() {
               body: reminder.text,
               icon: '/vite.svg',
               tag: reminder.id,
+              requireInteraction: true,
               // @ts-ignore
               sound: soundUrl,
               // @ts-ignore
               showTrigger: new window.TimestampTrigger(reminderTime)
             });
+            console.log('Web scheduled via showTrigger');
+          } else {
+             // Browser doesn't support TimestampTrigger
+             console.log('TimestampTrigger not supported on this browser. Notifications require keeping the app open.');
           }
         }
       } catch (err) {
-        console.error('Failed to schedule notification', err);
+        console.error('Failed to schedule text notification', err);
       }
     }
   };
 
   useEffect(() => {
     const playAlarm = (reminder: Reminder) => {
-      if (activeAudioRef.current) {
-        activeAudioRef.current.stop();
-      }
-      activeAudioRef.current = playAlarmSound(alarmSoundId, true);
-      setActiveAlarm(reminder);
+      setActiveAlarms(alarms => {
+        if (alarms.length === 0) {
+          if (activeAudioRef.current) {
+            activeAudioRef.current.stop();
+          }
+          activeAudioRef.current = playAlarmSound(alarmSoundId, true);
+        }
+        return [...alarms, reminder];
+      });
     };
 
     const checkReminders = () => {
@@ -412,24 +431,16 @@ export default function App() {
             const reminderTime = new Date(`${reminder.date}T${reminder.time}`).getTime();
             const timeDiff = now.getTime() - reminderTime;
             
-            // Trigger if due now or within the last 15 minutes (compensates for WebView sleep)
-            if (timeDiff >= 0 && timeDiff < 15 * 60 * 1000) {
+            // Trigger if due now or in the past (missed reminders popup on open)
+            if (timeDiff >= 0) {
               playAlarm(reminder);
               
               (async () => {
-                try {
-                  // Check if Capacitor is available by checking permissions
-                  // If it is, we don't need to fire an immediate notification because
-                  // the scheduled one will fire.
-                  const permStatus = await LocalNotifications.checkPermissions();
-                  if (permStatus.display === 'granted') {
-                    // Already handled by OS schedule
-                    return;
-                  } else {
-                    throw new Error('Capacitor not available or no permission');
-                  }
-                } catch (capError) {
-                  // Fallback to Web API
+                if (Capacitor.isNativePlatform()) {
+                   // Already handled by OS schedule
+                   return;
+                } else {
+                  // Fallback to Web API for foreground/background tab
                   try {
                     if ('Notification' in window && Notification.permission === 'granted') {
                       if ('serviceWorker' in navigator) {
@@ -438,6 +449,7 @@ export default function App() {
                             body: reminder.text,
                             icon: '/vite.svg',
                             tag: reminder.id,
+                            requireInteraction: true
                           });
                         });
                       } else {
@@ -445,6 +457,7 @@ export default function App() {
                           body: reminder.text,
                           icon: '/vite.svg',
                           tag: reminder.id,
+                          requireInteraction: true
                         });
                       }
                     }
@@ -466,8 +479,16 @@ export default function App() {
       });
     };
 
-    const interval = setInterval(checkReminders, 10000);
-    return () => clearInterval(interval);
+    const worker = new Worker('/worker.js');
+    checkReminders(); // Call immediately on mount
+    worker.postMessage({ command: 'start' });
+    worker.onmessage = () => {
+       checkReminders();
+    };
+
+    return () => {
+       worker.terminate();
+    };
   }, [alarmSoundId]);
 
   const handleToggle = (taskId: string, dateStr: string) => {
@@ -772,13 +793,18 @@ export default function App() {
                 isDark={isDark} 
                 userData={userData} 
                 language={language} 
-                onUpdateProfile={(updates) => setUserData((prev: any) => ({ ...prev, ...updates }))}
+                onUpdateProfile={(updates) => {
+                  setUserData((prev: any) => ({ ...prev, ...updates }));
+                  if (updates.language) setLanguage(updates.language);
+                  if (updates.alarmSound) setAlarmSoundId(updates.alarmSound);
+                  if (updates.theme !== undefined) setIsDark(updates.theme === 'dark');
+                }}
               />
             )}
           </div>
           
           <div className="text-center mt-4 pt-2 pb-2 space-y-1 shrink-0">
-            <p className={`text-[10px] font-medium transition-colors ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>Developed by RK</p>
+            <p className={`text-[10px] font-medium transition-colors ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>{t(language, 'app.developed_by') || 'Developed by RK'}</p>
           </div>
 
         {/* Bottom Navigation */}

@@ -96,6 +96,11 @@ export function Reminders({ reminders, onAdd, onToggle, onDelete, onUpdate, isDa
 
   const handlePrevMonth = () => setCurrentMonth(subMonths(currentMonth, 1));
   const handleNextMonth = () => setCurrentMonth(addMonths(currentMonth, 1));
+  const handleToday = () => {
+    const today = new Date();
+    setCurrentMonth(today);
+    setSelectedDate(today);
+  };
 
   const selectedDateStr = format(selectedDate, 'yyyy-MM-dd');
   const selectedReminders = reminders.filter(r => !r.date || r.date === selectedDateStr).sort((a, b) => {
@@ -238,12 +243,22 @@ export function Reminders({ reminders, onAdd, onToggle, onDelete, onUpdate, isDa
 
         <div className={`p-4 rounded-xl border mb-4 shrink-0 shadow-sm ${isDark ? 'bg-slate-800/50 border-slate-700' : 'bg-white border-slate-200'}`}>
         <div className="flex justify-between items-center mb-4">
-          <button onClick={handlePrevMonth} className={`p-1.5 rounded-lg transition-colors ${isDark ? 'hover:bg-slate-700 text-slate-300' : 'hover:bg-slate-100 text-slate-600'}`}>
-            <ChevronLeft className="w-5 h-5" />
-          </button>
-          <h2 className="text-base font-semibold">{format(currentMonth, 'MMMM yyyy')}</h2>
-          <button onClick={handleNextMonth} className={`p-1.5 rounded-lg transition-colors ${isDark ? 'hover:bg-slate-700 text-slate-300' : 'hover:bg-slate-100 text-slate-600'}`}>
-            <ChevronRight className="w-5 h-5" />
+          <div className={`flex items-center gap-1 px-2 py-1 rounded-full shrink-0 ${isDark ? 'bg-slate-800' : 'bg-slate-200'}`}>
+            <button onClick={handlePrevMonth} className={`p-1 rounded-full transition-colors ${isDark ? 'hover:bg-slate-700' : 'hover:bg-slate-300'}`}>
+              <ChevronLeft className="w-4 h-4" />
+            </button>
+            <button onClick={handleToday} className="text-xs font-bold px-2 uppercase tracking-wider whitespace-nowrap">
+              {format(currentMonth, 'MMMM yyyy')}
+            </button>
+            <button onClick={handleNextMonth} className={`p-1 rounded-full transition-colors ${isDark ? 'hover:bg-slate-700' : 'hover:bg-slate-300'}`}>
+              <ChevronRight className="w-4 h-4" />
+            </button>
+          </div>
+          <button 
+            onClick={handleToday} 
+            className={`px-3 py-1.5 rounded-full text-[10px] sm:text-xs font-bold uppercase tracking-wider transition-colors shrink-0 ${isDark ? 'bg-slate-700 hover:bg-slate-600 text-white' : 'bg-slate-200 hover:bg-slate-300 text-slate-900'}`}
+          >
+            {t(language, 'nav.today') || 'Today'}
           </button>
         </div>
         <div className="grid grid-cols-7 gap-1">

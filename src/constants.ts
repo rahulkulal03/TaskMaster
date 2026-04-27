@@ -1,3 +1,5 @@
+import fhaaaaSound from './assets/fhaaaa.mp3';
+
 export const ALARM_SOUNDS = [
   { id: 'default', name: 'Default Chime', url: '' },
   { id: 'bells', name: 'Morning Bells', url: '' },
@@ -29,6 +31,7 @@ export const ALARM_SOUNDS = [
   { id: 'piano', name: 'Piano Melody', url: '' },
   { id: 'rooster', name: 'Rooster Crow', url: '' },
   { id: 'synth', name: 'Synth Pop', url: '' },
+  { id: 'fhaaaa', name: 'Fhaaaa Meme', url: fhaaaaSound },
   { id: 'custom', name: 'Custom Ringtone', url: 'custom' }
 ];
 

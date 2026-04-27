@@ -24,26 +24,24 @@ export const playAlarmSound = (id: string, loop: boolean = false): { stop: () =>
     }
   }
 
-  if (id.startsWith('custom_music')) {
-    const sound = ALARM_SOUNDS.find(s => s.id === id);
-    if (sound && sound.url) {
-      try {
-        const audio = new Audio(sound.url);
-        audio.loop = loop;
-        const playPromise = audio.play();
-        if (playPromise !== undefined) {
-          playPromise.catch(e => console.error('Audio playback failed', e));
-        }
-        return {
-          stop: () => {
-            audio.pause();
-            audio.currentTime = 0;
-          }
-        };
-      } catch (e) {
-        console.error('Audio playback failed', e);
-        return { stop: () => {} };
+  const soundConfig = ALARM_SOUNDS.find(s => s.id === id);
+  if (soundConfig && soundConfig.url && soundConfig.id !== 'custom') {
+    try {
+      const audio = new Audio(soundConfig.url);
+      audio.loop = loop;
+      const playPromise = audio.play();
+      if (playPromise !== undefined) {
+        playPromise.catch(e => console.error('Audio playback failed', e));
       }
+      return {
+        stop: () => {
+          audio.pause();
+          audio.currentTime = 0;
+        }
+      };
+    } catch (e) {
+      console.error('Audio playback failed', e);
+      return { stop: () => {} };
     }
   }
 
@@ -347,6 +345,7 @@ export const playAlarmSound = (id: string, loop: boolean = false): { stop: () =>
               nextNoteTime += 1.0;
             }
             break;
+
           case 'default':
           default:
             for (let i = 0; i < 4; i++) {

@@ -6,7 +6,7 @@ import { LineChart as LineChartIcon } from 'lucide-react';
 
 import { t } from '../translations';
 
-export function HabitChart({ completions, currentMonth, totalTasks, isDark, language }: { completions: Completions, currentMonth: Date, totalTasks: number, isDark: boolean, language: string }) {
+export function HabitChart({ completions, currentMonth, totalTasks, isDark, language, showTodayHighlight }: { completions: Completions, currentMonth: Date, totalTasks: number, isDark: boolean, language: string, showTodayHighlight?: boolean }) {
   const data = useMemo(() => {
     const start = startOfMonth(currentMonth);
     const end = endOfMonth(currentMonth);
@@ -83,6 +83,7 @@ export function HabitChart({ completions, currentMonth, totalTasks, isDark, lang
                 borderRadius: '8px', 
                 color: isDark ? '#f8fafc' : '#0f172a' 
               }} 
+              formatter={(value: number) => [value, t(language, 'home.tasks_completed')]}
             />
             <Area 
               type="monotone" 
@@ -91,7 +92,22 @@ export function HabitChart({ completions, currentMonth, totalTasks, isDark, lang
               strokeWidth={2} 
               fillOpacity={1} 
               fill="url(#colorCount)" 
-              dot={{ r: 3, fill: '#ffffff', stroke: '#10B981', strokeWidth: 2 }} 
+              dot={(props: any) => {
+                const { cx, cy, payload } = props;
+                const dateObj = payload.fullDate;
+                const isToday = isSameMonth(dateObj, new Date()) && format(dateObj, 'd') === format(new Date(), 'd');
+                if (isToday && showTodayHighlight) {
+                  return (
+                    <g key={`dot-${payload.date}`}>
+                      <circle cx={cx} cy={cy} r={6} fill="#eab308" stroke={isDark ? '#151C2C' : '#ffffff'} strokeWidth={2} />
+                      <text x={cx} y={cy - 12} textAnchor="middle" fill={isDark ? '#eab308' : '#f59e0b'} fontSize={12} fontWeight="bold">
+                        {payload.count}
+                      </text>
+                    </g>
+                  );
+                }
+                return <circle key={`dot-${payload.date}`} cx={cx} cy={cy} r={3} fill="#ffffff" stroke="#10B981" strokeWidth={2} />;
+              }}
               activeDot={{ r: 5, fill: '#ffffff', stroke: '#4F8AFB', strokeWidth: 2 }} 
             />
           </AreaChart>

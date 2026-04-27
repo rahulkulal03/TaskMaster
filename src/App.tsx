@@ -59,6 +59,14 @@ export default function App() {
   });
 
   const [activeTab, setActiveTab] = useState<'home' | 'overview' | 'reminders' | 'profile'>('home');
+  const [showTodayHighlight, setShowTodayHighlight] = useState(false);
+
+  useEffect(() => {
+    if (activeTab !== 'overview') {
+      setShowTodayHighlight(false);
+    }
+  }, [activeTab]);
+
   const [tasks, setTasks] = useState<Task[]>([]);
   const [completions, setCompletions] = useState<Completions>({});
   const [reminders, setReminders] = useState<Reminder[]>([]);
@@ -126,48 +134,30 @@ export default function App() {
     }
   }, [userData, alarmSoundId, language]);
 
-  // Local storage write helpers
-  const saveTaskToLocal = (task: Task) => {
-    setTasks(prev => {
-      const exists = prev.find(t => t.id === task.id);
-      if (exists) {
-        return prev.map(t => t.id === task.id ? task : t);
-      }
-      return [...prev, task];
-    });
+  const handleAddTask = () => {
+    const newId = Date.now().toString() + Math.random().toString(36).substring(2);
+    const newTask = { 
+      id: newId, 
+      uid: 'local-user',
+      title: 'New Task',
+      createdAt: new Date().toISOString()
+    };
+    
+    setTasks(prev => [...prev, newTask]);
+    return newId;
   };
 
-  const deleteTaskFromLocal = (taskId: string, taskCompletions: Record<string, boolean> = {}) => {
-    setTasks(prev => prev.filter(t => t.id !== taskId));
+  const handleUpdateTask = (id: string, title: string) => {
+    setTasks(prev => prev.map(t => t.id === id ? { ...t, title } : t));
+  };
+
+  const handleDeleteTask = (id: string) => {
+    setTasks(prev => prev.filter(t => t.id !== id));
     setCompletions(prev => {
       const newCompletions = { ...prev };
-      delete newCompletions[taskId];
+      delete newCompletions[id];
       return newCompletions;
     });
-  };
-
-  const saveCompletionToLocal = (taskId: string, dateStr: string, completed: boolean) => {
-    setCompletions(prev => ({
-      ...prev,
-      [taskId]: {
-        ...(prev[taskId] || {}),
-        [dateStr]: completed
-      }
-    }));
-  };
-
-  const saveReminderToLocal = (reminder: Reminder) => {
-    setReminders(prev => {
-      const exists = prev.find(r => r.id === reminder.id);
-      if (exists) {
-        return prev.map(r => r.id === reminder.id ? reminder : r);
-      }
-      return [...prev, reminder];
-    });
-  };
-
-  const deleteReminderFromLocal = (reminderId: string) => {
-    setReminders(prev => prev.filter(r => r.id !== reminderId));
   };
 
   useEffect(() => {
@@ -206,11 +196,9 @@ export default function App() {
         reminderTimeouts.current[id] = setTimeout(() => {
           setReminders(currentReminders => currentReminders.filter(r => r.id !== id));
           delete reminderTimeouts.current[id];
-          deleteReminderFromLocal(id);
         }, 5000);
         
         const updated = { ...reminder, completed: true };
-        saveReminderToLocal(updated);
         return prev.map(r => r.id === id ? updated : r);
       });
     }
@@ -290,7 +278,6 @@ export default function App() {
               if (actionId === 'dismiss') {
                 // Mark as completed
                 const updated = { ...reminder, completed: true };
-                saveReminderToLocal(updated);
                 return prev.map(r => r.id === reminder.id ? updated : r);
               } else if (actionId === 'snooze') {
                 // Snooze for 10 minutes
@@ -305,7 +292,6 @@ export default function App() {
                   scheduleNotification(updatedReminder);
                 }, 100);
                 
-                saveReminderToLocal(updatedReminder);
                 return prev.map(r => r.id === reminder.id ? updatedReminder : r);
               } else {
                 // Default tap, open app and show alarm modal
@@ -469,7 +455,6 @@ export default function App() {
               
               updated = true;
               const updatedReminder = { ...reminder, notified: true };
-              saveReminderToLocal(updatedReminder);
               return updatedReminder;
             }
           }
@@ -492,103 +477,66 @@ export default function App() {
   }, [alarmSoundId]);
 
   const handleToggle = (taskId: string, dateStr: string) => {
-    setCompletions(prev => {
-      const isCompleted = !(prev[taskId]?.[dateStr]);
-      saveCompletionToLocal(taskId, dateStr, isCompleted);
-      
-      const newCompletions = {
-        ...prev,
-        [taskId]: {
-          ...(prev[taskId] || {}),
-          [dateStr]: isCompleted
-        }
-      };
-
-      // Check for celebration
-      const todayStr = format(new Date(), 'yyyy-MM-dd');
-      if (isCompleted && dateStr === todayStr && tasks.length > 0) {
-        const allCompleted = tasks.every(t => newCompletions[t.id]?.[todayStr]);
-        if (allCompleted) {
-          setShowCelebration(true);
-          playCelebrationSound();
-          
-          // Multiple party popups (confetti bursts)
-          const duration = 3000;
-          const end = Date.now() + duration;
-
-          const frame = () => {
-            confetti({
-              particleCount: 5,
-              angle: 60,
-              spread: 55,
-              origin: { x: 0 },
-              colors: ['#4F8AFB', '#FFD700', '#FF6B6B', '#4CAF50']
-            });
-            confetti({
-              particleCount: 5,
-              angle: 120,
-              spread: 55,
-              origin: { x: 1 },
-              colors: ['#4F8AFB', '#FFD700', '#FF6B6B', '#4CAF50']
-            });
-
-            if (Date.now() < end) {
-              requestAnimationFrame(frame);
-            }
-          };
-          frame();
-          
-          // Hide popup and clear confetti after 3 seconds
-          setTimeout(() => {
-            setShowCelebration(false);
-            confetti.reset();
-          }, 3000);
-        }
-      }
-
-      return newCompletions;
-    });
-  };
-
-  const handleAddTask = () => {
-    const newId = Date.now().toString() + Math.random().toString(36).substring(2);
-    const newTask = { 
-      id: newId, 
-      uid: 'local-user',
-      title: 'New Task',
-      createdAt: new Date().toISOString()
-    };
+    const isCompleted = !(completions[taskId]?.[dateStr]);
     
-    setTasks(prev => [...prev, newTask]);
-    saveTaskToLocal(newTask);
-    return newId;
-  };
-
-  const handleUpdateTask = (id: string, title: string) => {
-    setTasks(prev => {
-      const updated = prev.map(t => t.id === id ? { ...t, title } : t);
-      const task = updated.find(t => t.id === id);
-      if (task && title.trim().length > 0) {
-        saveTaskToLocal(task);
+    const newCompletions = {
+      ...completions,
+      [taskId]: {
+        ...(completions[taskId] || {}),
+        [dateStr]: isCompleted
       }
-      return updated;
-    });
+    };
+
+    setCompletions(newCompletions);
+
+    // Check for celebration
+    const todayStr = format(new Date(), 'yyyy-MM-dd');
+    if (isCompleted && dateStr === todayStr && tasks.length > 0) {
+      const allCompleted = tasks.every(t => newCompletions[t.id]?.[todayStr]);
+      if (allCompleted) {
+        setShowCelebration(true);
+        playCelebrationSound();
+        
+        // Multiple party popups (confetti bursts)
+        const duration = 3000;
+        const end = Date.now() + duration;
+
+        const frame = () => {
+          confetti({
+            particleCount: 5,
+            angle: 60,
+            spread: 55,
+            origin: { x: 0 },
+            colors: ['#4F8AFB', '#FFD700', '#FF6B6B', '#4CAF50']
+          });
+          confetti({
+            particleCount: 5,
+            angle: 120,
+            spread: 55,
+            origin: { x: 1 },
+            colors: ['#4F8AFB', '#FFD700', '#FF6B6B', '#4CAF50']
+          });
+
+          if (Date.now() < end) {
+            requestAnimationFrame(frame);
+          }
+        };
+        frame();
+        
+        // Hide popup and clear confetti after 3 seconds
+        setTimeout(() => {
+          setShowCelebration(false);
+          confetti.reset();
+        }, 3000);
+      }
+    }
   };
 
-  const handleDeleteTask = (id: string) => {
-    setTasks(prev => prev.filter(t => t.id !== id));
-    setCompletions(prev => {
-      const newCompletions = { ...prev };
-      const taskCompletions = newCompletions[id] || {};
-      delete newCompletions[id];
-      deleteTaskFromLocal(id, taskCompletions);
-      return newCompletions;
-    });
-  };
 
-  const handlePrevMonth = () => setCurrentMonth(prev => subMonths(prev, 1));
-  const handleNextMonth = () => setCurrentMonth(prev => addMonths(prev, 1));
-  const handleToday = () => setCurrentMonth(new Date());
+
+  const handlePrevMonth = () => { setCurrentMonth(prev => subMonths(prev, 1)); setShowTodayHighlight(false); };
+  const handleNextMonth = () => { setCurrentMonth(prev => addMonths(prev, 1)); setShowTodayHighlight(false); };
+  const handleToday = () => { setCurrentMonth(new Date()); setShowTodayHighlight(true); };
 
   const handleAddReminder = (text: string, date: string, time: string) => {
     const newReminder: Reminder = {
@@ -602,7 +550,6 @@ export default function App() {
     };
     setReminders(prev => [...prev, newReminder]);
     scheduleNotification(newReminder);
-    saveReminderToLocal(newReminder);
   };
 
   const handleToggleReminder = (id: string) => {
@@ -618,7 +565,6 @@ export default function App() {
         reminderTimeouts.current[id] = setTimeout(() => {
           setReminders(currentReminders => currentReminders.filter(r => r.id !== id));
           delete reminderTimeouts.current[id];
-          deleteReminderFromLocal(id);
         }, 5000);
       } else {
         // Un-toggled, clear the timeout if it exists
@@ -631,7 +577,6 @@ export default function App() {
       }
 
       const updated = { ...reminder, completed: isNowCompleted };
-      saveReminderToLocal(updated);
       return prev.map(r => r.id === id ? updated : r);
     });
   };
@@ -643,7 +588,6 @@ export default function App() {
     }
     cancelNotification(id);
     setReminders(prev => prev.filter(r => r.id !== id));
-    deleteReminderFromLocal(id);
   };
 
   const handleUpdateReminder = (id: string, text: string, date: string, time: string) => {
@@ -652,7 +596,6 @@ export default function App() {
         if (r.id === id) {
           const updatedReminder = { ...r, text, date, time, notified: false };
           scheduleNotification(updatedReminder);
-          saveReminderToLocal(updatedReminder);
           return updatedReminder;
         }
         return r;
@@ -674,7 +617,6 @@ export default function App() {
         r.id === activeAlarm.id ? updatedReminder : r
       ));
       
-      saveReminderToLocal(updatedReminder);
       scheduleNotification(updatedReminder);
     }
     dismissAlarm(false);
@@ -733,25 +675,27 @@ export default function App() {
       <div className="max-w-6xl mx-auto w-full flex-1 flex flex-col p-4 sm:p-6 shadow-2xl bg-white/5 dark:bg-black/20 min-h-0">
           
           {/* Header (Month Navigation) */}
-          <div className="flex items-center justify-between mb-4 px-2 shrink-0">
-            <div className={`flex items-center gap-1 px-2 sm:px-3 py-1 sm:py-1.5 rounded-full shrink-0 ${isDark ? 'bg-slate-800' : 'bg-slate-200'}`}>
-              <button onClick={handlePrevMonth} className={`p-1 rounded-full transition-colors ${isDark ? 'hover:bg-slate-700' : 'hover:bg-slate-300'}`}>
-                <ChevronLeft className="w-4 h-4" />
-              </button>
-              <button onClick={handleToday} className="text-[10px] sm:text-xs font-bold px-2 sm:px-4 uppercase tracking-wider whitespace-nowrap">
-                {currentMonth.toLocaleDateString(language, { month: 'long', year: 'numeric' })}
-              </button>
-              <button onClick={handleNextMonth} className={`p-1 rounded-full transition-colors ${isDark ? 'hover:bg-slate-700' : 'hover:bg-slate-300'}`}>
-                <ChevronRight className="w-4 h-4" />
+          {(activeTab === 'home' || activeTab === 'overview') && (
+            <div className="flex items-center justify-between mb-4 px-2 shrink-0">
+              <div className={`flex items-center gap-1 px-2 sm:px-3 py-1 sm:py-1.5 rounded-full shrink-0 ${isDark ? 'bg-slate-800' : 'bg-slate-200'}`}>
+                <button onClick={handlePrevMonth} className={`p-1 rounded-full transition-colors ${isDark ? 'hover:bg-slate-700' : 'hover:bg-slate-300'}`}>
+                  <ChevronLeft className="w-4 h-4" />
+                </button>
+                <button onClick={handleToday} className="text-[10px] sm:text-xs font-bold px-2 sm:px-4 uppercase tracking-wider whitespace-nowrap">
+                  {currentMonth.toLocaleDateString(language, { month: 'long', year: 'numeric' })}
+                </button>
+                <button onClick={handleNextMonth} className={`p-1 rounded-full transition-colors ${isDark ? 'hover:bg-slate-700' : 'hover:bg-slate-300'}`}>
+                  <ChevronRight className="w-4 h-4" />
+                </button>
+              </div>
+              <button 
+                onClick={handleToday} 
+                className={`px-3 py-1.5 sm:px-4 sm:py-1.5 rounded-full text-[10px] sm:text-xs font-bold uppercase tracking-wider transition-colors shrink-0 ${isDark ? 'bg-slate-800 hover:bg-slate-700 text-white' : 'bg-slate-200 hover:bg-slate-300 text-slate-900'}`}
+              >
+                {t(language, 'nav.today')}
               </button>
             </div>
-            <button 
-              onClick={handleToday} 
-              className={`px-3 py-1.5 sm:px-4 sm:py-1.5 rounded-full text-[10px] sm:text-xs font-bold uppercase tracking-wider transition-colors shrink-0 ${isDark ? 'bg-slate-800 hover:bg-slate-700 text-white' : 'bg-slate-200 hover:bg-slate-300 text-slate-900'}`}
-            >
-              {t(language, 'nav.today')}
-            </button>
-          </div>
+          )}
 
           {/* Main Content Area */}
           <div className="flex-1 overflow-hidden flex flex-col min-h-0 relative">
@@ -775,6 +719,7 @@ export default function App() {
                 totalTasks={tasks.length}
                 isDark={isDark}
                 language={language}
+                showTodayHighlight={showTodayHighlight}
               />
             )}
             {activeTab === 'reminders' && (

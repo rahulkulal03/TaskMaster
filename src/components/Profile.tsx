@@ -1,7 +1,8 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Camera, Globe, Bell, Info, ChevronRight, Check, Play, Square, Upload } from 'lucide-react';
+import { Camera, Globe, Bell, Info, ChevronRight, Check, Play, Square, Upload, BookOpen } from 'lucide-react';
 import { playAlarmSound } from '../utils/audio';
 import { ALARM_SOUNDS, LANGUAGES } from '../constants';
+import { StudyMaterials } from './StudyMaterials';
 
 import { t } from '../translations';
 
@@ -17,6 +18,7 @@ export function Profile({ isDark, userData, language, onUpdateProfile }: Profile
   const [alarmSound, setAlarmSound] = useState(userData?.alarmSound || 'default');
   const [showLanguageModal, setShowLanguageModal] = useState(false);
   const [showAlarmModal, setShowAlarmModal] = useState(false);
+  const [showStudyMaterials, setShowStudyMaterials] = useState(false);
   const [playingPreview, setPlayingPreview] = useState<string | null>(null);
   const [isEditingProfile, setIsEditingProfile] = useState(false);
   const [editName, setEditName] = useState('');
@@ -245,6 +247,23 @@ export function Profile({ isDark, userData, language, onUpdateProfile }: Profile
           <ChevronRight className={`w-5 h-5 ${isDark ? 'text-slate-500' : 'text-slate-400'}`} />
         </button>
 
+        {/* Study Materials */}
+        <button 
+          onClick={() => setShowStudyMaterials(true)}
+          className={`w-full flex items-center justify-between p-4 rounded-xl transition-colors ${isDark ? 'bg-slate-800/50 hover:bg-slate-800' : 'bg-white hover:bg-slate-50'} shadow-sm`}
+        >
+          <div className="flex items-center gap-3">
+            <div className={`p-2 rounded-lg ${isDark ? 'bg-indigo-500/20 text-indigo-400' : 'bg-indigo-100 text-indigo-600'}`}>
+              <BookOpen className="w-5 h-5" />
+            </div>
+            <div className="text-left">
+              <p className="font-medium text-base">Study Materials</p>
+              <p className={`text-xs ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>Manage subjects & notes</p>
+            </div>
+          </div>
+          <ChevronRight className={`w-5 h-5 ${isDark ? 'text-slate-500' : 'text-slate-400'}`} />
+        </button>
+
         {/* App Version */}
         <div className={`w-full flex items-center justify-between p-4 rounded-xl ${isDark ? 'bg-slate-800/50' : 'bg-white'} shadow-sm`}>
           <div className="flex items-center gap-3">
@@ -256,6 +275,15 @@ export function Profile({ isDark, userData, language, onUpdateProfile }: Profile
           <span className={`text-sm ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>{t(language, 'profile.version')}</span>
         </div>
       </div>
+
+      {/* Study Materials Overlay */}
+      {showStudyMaterials && (
+        <StudyMaterials 
+          isDark={isDark} 
+          language={language} 
+          onBack={() => setShowStudyMaterials(false)} 
+        />
+      )}
 
       {/* Language Modal */}
       {showLanguageModal && (

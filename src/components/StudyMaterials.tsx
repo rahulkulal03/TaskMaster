@@ -220,10 +220,17 @@ export function StudyMaterials({ isDark, language, onBack }: StudyMaterialsProps
     return URL.createObjectURL(blob);
   };
 
+  const isMedianApp = () => ((typeof window !== 'undefined' && (window as any).median) || navigator.userAgent.toLowerCase().includes('median'));
+
   const handleFileClick = (file: NoteFile) => {
     if (file.type.startsWith('image/')) {
       setViewingFile(file);
     } else {
+      if (isMedianApp()) {
+        window.location.href = `median://share/sharePage?url=${encodeURIComponent(file.url)}&title=${encodeURIComponent(file.name)}`;
+        return;
+      }
+
       try {
         const blobUrl = getBlobUrl(file.url);
         const a = document.createElement('a');
@@ -239,6 +246,11 @@ export function StudyMaterials({ isDark, language, onBack }: StudyMaterialsProps
 
   const handleDownloadFile = (e: React.MouseEvent, file: NoteFile) => {
     e.stopPropagation();
+    if (isMedianApp()) {
+      window.location.href = `median://share/sharePage?url=${encodeURIComponent(file.url)}&title=${encodeURIComponent(file.name)}`;
+      return;
+    }
+
     try {
       const blobUrl = getBlobUrl(file.url);
       const a = document.createElement('a');
@@ -253,6 +265,11 @@ export function StudyMaterials({ isDark, language, onBack }: StudyMaterialsProps
 
   const handleShareButton = async (e: React.MouseEvent, file: NoteFile) => {
     e.stopPropagation();
+    if (isMedianApp()) {
+      window.location.href = `median://share/sharePage?url=${encodeURIComponent(file.url)}&title=${encodeURIComponent(file.name)}`;
+      return;
+    }
+
     try {
       const byteString = atob(file.url.split(',')[1]);
       const mimeString = file.url.split(',')[0].split(':')[1].split(';')[0];
